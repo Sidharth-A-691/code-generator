@@ -45,12 +45,12 @@ class CodeGenerationService:
         })
         return result.content
     
-    def _execute_mcp_plan(self, plan: str, output_directory: str):
+    def _execute_plan(self, plan: str, output_directory: str):
         """
         Executes the scaffolding plan using the filesystem_agent_executor.
         This method remains the same as before.
         """
-        print(f"Executing MCP plan in directory: {output_directory}")
+        print(f"Executing plan in directory: {output_directory}")
 
         if not os.path.exists(output_directory):
             os.makedirs(output_directory)
@@ -73,13 +73,13 @@ class CodeGenerationService:
                 "input": execution_prompt
             })
             
-            print("--- MCP Plan Execution Finished ---")
+            print("--- Plan Execution Finished ---")
             print(f"Final output from agent: {result.get('output', 'No output captured.')}")
             
             return {"success": True, "output": "Plan executed successfully."}
 
         except Exception as e:
-            print(f"ERROR: An error occurred during MCP plan execution: {e}")
+            print(f"ERROR: An error occurred during plan execution: {e}")
             raise
         finally:
             os.chdir(original_directory)
@@ -97,8 +97,8 @@ class CodeGenerationService:
         print("Plan received from Azure OpenAI:")
         print(full_plan)
 
-        print("\nStep 2: Handing off Scaffolding Plan to MCP Agent for execution...")
-        result = self._execute_mcp_plan(full_plan, output_directory)
+        print("\nStep 2: Handing off Scaffolding Plan to Agent for execution...")
+        result = self._execute_plan(full_plan, output_directory)
         
         return result
 
