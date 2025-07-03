@@ -1,263 +1,261 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Cpu, Download, ArrowRight, Code, Server, BrainCircuit, Bot, FileArchive, CheckCircle, XCircle, Loader, Zap } from 'lucide-react';
-import clsx from 'clsx';
+import React, { useState, useEffect, useRef } from 'react'
+import {
+  ArrowRight,
+  Code,
+  Server,
+  Bot,
+  CheckCircle,
+  Loader,
+  Zap,
+  Download,
+  BrainCircuit
+} from 'lucide-react'
+import clsx from 'clsx'
 
-// --- Technology Data ---
+// --- Tech options with icons ---
 const techOptions = {
   frontend: [
-    { id: 'react', name: 'React + Vite', icon: <Code size={20} /> },
-    { id: 'vue', name: 'Vue + Vite', icon: <Code size={20} /> },
-    { id: 'angular', name: 'Angular', icon: <Code size={20} /> },
+    { id: 'react',   name: 'React + Vite', icon: <Code size={20}/> },
+    { id: 'vue',     name: 'Vue + Vite',   icon: <Code size={20}/> },
+    { id: 'angular', name: 'Angular',      icon: <Code size={20}/> }
   ],
   backend: [
-    { id: 'springboot', name: 'Java (Spring Boot)', icon: <Server size={20} /> },
-    { id: 'fastapi', name: 'Python (FastAPI)', icon: <Server size={20} /> },
-    { id: 'nodejs', name: 'Node.js (Express)', icon: <Server size={20} /> },
-  ],
-};
+    { id: 'springboot', name: 'Java (Spring Boot)', icon: <Server size={20}/> },
+    { id: 'fastapi',    name: 'Python (FastAPI)',  icon: <Server size={20}/> },
+    { id: 'nodejs',     name: 'Node.js (Express)', icon: <Server size={20}/> }
+  ]
+}
 
-// Hardcoded project data
+// --- Mock project data ---
 const mockProjects = {
   'react-frontend': {
-    files: ['App.jsx', 'components/Dashboard.jsx', 'components/LoginForm.jsx', 'utils/api.js'],
-    structure: 'Modern React app with component architecture',
-    features: ['User Authentication', 'Dashboard UI', 'Responsive Design']
+    files: ['App.jsx','Dashboard.jsx','LoginForm.jsx','api.js'],
+    features: ['Auth','Dashboard UI','Responsive']
   },
   'vue-frontend': {
-    files: ['App.vue', 'components/Dashboard.vue', 'components/LoginForm.vue', 'router/index.js'],
-    structure: 'Vue 3 application with Composition API',
-    features: ['Vue Router', 'Pinia State Management', 'Component Library']
+    files: ['App.vue','Dashboard.vue','LoginForm.vue','router.js'],
+    features: ['Vue Router','Pinia','UI Library']
   },
   'springboot-backend': {
-    files: ['Application.java', 'controller/UserController.java', 'service/UserService.java', 'config/SecurityConfig.java'],
-    structure: 'Spring Boot REST API with security',
-    features: ['JWT Authentication', 'JPA Repositories', 'REST Endpoints']
+    files: ['App.java','UserController.java','UserService.java','SecurityConfig.java'],
+    features: ['JWT Auth','JPA','REST API']
   },
   'fastapi-backend': {
-    files: ['main.py', 'models/user.py', 'routers/auth.py', 'database.py'],
-    structure: 'FastAPI with async support',
-    features: ['Async Operations', 'Pydantic Models', 'OAuth2 Security']
+    files: ['main.py','user.py','auth.py','db.py'],
+    features: ['Async','Pydantic','OAuth2']
   }
-};
+}
 
-// --- Progress Circuit Component ---
-const ProgressCircuit = ({ currentStep, completedSteps }) => {
-  const steps = ['stories', 'branch', 'tech', 'generate', 'download'];
-  
+// --- Half-hexagon component ---
+const Hexagon = ({ position, color, half }) => {
+  const clipPath = half === 'top'
+    ? 'polygon(25% 0%,75% 0%,100% 50%,0% 50%)'
+    : 'polygon(0% 50%,100% 50%,75% 100%,25% 100%)'
   return (
-    <div className="fixed left-8 top-1/2 -translate-y-1/2 z-40 hidden lg:block">
-      <div className="relative">
-        {/* Vertical main line */}
-        <div className="absolute left-4 top-0 w-0.5 h-full bg-gradient-to-b from-blue-500/20 via-purple-500/20 to-red-500/20"></div>
-        
-        {steps.map((step, index) => {
-          const isActive = currentStep === step;
-          const isCompleted = completedSteps.includes(step);
-          const position = index * 120;
-          
+    <div
+      className={clsx('absolute w-64 h-32', color, position)}
+      style={{ clipPath }}
+    />
+  )
+}
+
+// --- Vertical progress circuit ---
+const ProgressCircuit = ({ scrollTo, currentStep, completed }) => {
+  const steps = ['stories','setup','download']
+  const labels = { stories:'User Stories', setup:'Project Setup', download:'Download' }
+  const mapTo   = { stories:'stories', setup:'branches', download:'results' }
+
+  return (
+    <div className="fixed left-8 top-1/2 bottom-8 hidden lg:block z-40">
+      <div className="relative h-full">
+        <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500/20 via-purple-500/20 to-red-500/20"/>
+        {steps.map((s,i) => {
+          const active = currentStep === s
+          const done   = completed.includes(s)
           return (
-            <div key={step} className="relative" style={{ top: `${position}px` }}>
-              {/* Circuit node */}
+            <div
+              key={s}
+              className="relative cursor-pointer"
+              style={{ top: `${i*120}px` }}
+              onClick={() => scrollTo(mapTo[s])}
+            >
               <div className={clsx(
-                "w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500",
-                isActive ? "border-blue-400 bg-blue-400/20 shadow-lg shadow-blue-400/50" : 
-                isCompleted ? "border-green-400 bg-green-400/20" : "border-gray-600 bg-gray-800"
+                'w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all',
+                active
+                  ? 'border-blue-400 bg-blue-400/20 shadow-lg shadow-blue-400/50'
+                  : done
+                  ? 'border-green-400 bg-green-400/20'
+                  : 'border-gray-600 bg-gray-800'
               )}>
-                {isCompleted && <CheckCircle size={16} className="text-green-400" />}
-                {isActive && !isCompleted && <Zap size={16} className="text-blue-400 animate-pulse" />}
+                {done && <CheckCircle size={16} className="text-green-400"/>}
+                {active && !done && <Zap size={16} className="text-blue-400 animate-pulse"/>}
               </div>
-              
-              {/* Branch lines for tech selection */}
-              {step === 'tech' && currentStep === 'tech' && (
-                <>
-                  <div className="absolute left-8 top-4 w-16 h-0.5 bg-blue-400/50"></div>
-                  <div className="absolute left-24 top-0 w-0.5 h-8 bg-blue-400/50"></div>
-                  <div className="absolute left-24 top-8 w-0.5 h-8 bg-blue-400/50"></div>
-                </>
-              )}
-              
-              {/* Step label */}
-              <div className="absolute left-12 top-1/2 -translate-y-1/2 text-sm font-medium capitalize">
-                {step === 'stories' ? 'User Stories' : 
-                 step === 'branch' ? 'Project Type' :
-                 step === 'tech' ? 'Technology' :
-                 step === 'generate' ? 'Generate' : 'Download'}
+              <div className="absolute left-12 top-1/2 -translate-y-1/2 text-sm font-medium">
+                {labels[s]}
               </div>
             </div>
-          );
+          )
         })}
       </div>
     </div>
-  );
-};
+  )
+}
 
-// --- Reusable Components ---
-const NavLink = ({ children, sectionId, activeSection, scrollTo }) => (
+// --- Navbar link ---
+const NavLink = ({ to, active, scrollTo, children }) => (
   <button
-    onClick={() => scrollTo(sectionId)}
+    onClick={() => scrollTo(to)}
     className={clsx(
-      "px-4 py-2 text-sm font-medium transition-colors duration-300 relative",
-      activeSection === sectionId ? "text-white" : "text-gray-400 hover:text-white"
+      'px-4 py-2 text-sm font-medium transition-colors',
+      active ? 'text-white' : 'text-gray-400 hover:text-white'
     )}
   >
     {children}
-    {activeSection === sectionId && (
-      <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-0.5 bg-red-500 rounded-full"></span>
-    )}
   </button>
-);
+)
 
-const Section = React.forwardRef(({ children, id, className }, ref) => (
-  <section
-    ref={ref}
-    id={id}
-    className={clsx(
-      "min-h-screen w-full flex flex-col items-center justify-center p-8 snap-start snap-always",
-      className
-    )}
-  >
-    {children}
-  </section>
-));
+// --- Section wrapper with hexagon slots ---
+const Section = React.forwardRef(
+  ({ id, className, children, topHexagon, bottomHexagon }, ref) => (
+    <section
+      ref={ref}
+      id={id}
+      className={clsx(
+        'relative overflow-hidden min-h-screen w-full flex flex-col items-center justify-center p-8 snap-start',
+        className
+      )}
+    >
+      {topHexagon && (
+        <Hexagon
+          position={topHexagon.position}
+          color={topHexagon.color}
+          half="bottom"
+        />
+      )}
+      {bottomHexagon && (
+        <Hexagon
+          position={bottomHexagon.position}
+          color={bottomHexagon.color}
+          half="top"
+        />
+      )}
+      {children}
+    </section>
+  )
+)
 
-// --- Main App Component ---
 export default function App() {
-  const [activeSection, setActiveSection] = useState('home');
-  const sectionRefs = {
+  const [activeSection, setActiveSection] = useState('home')
+  const refs = {
     home: useRef(null),
     stories: useRef(null),
     branches: useRef(null),
-    technologies: useRef(null),
-    generator: useRef(null),
-    results: useRef(null),
-  };
+    results: useRef(null)
+  }
 
-  // State for the flow
-  const [userStories, setUserStories] = useState("As a user, I want to be able to sign up, log in, and see a dashboard with my recent activity.");
-  const [selectedBranch, setSelectedBranch] = useState(null);
-  const [selectedTech, setSelectedTech] = useState(null);
-  const [generationState, setGenerationState] = useState('idle');
-  const [generatedProject, setGeneratedProject] = useState(null);
-  const [completedSteps, setCompletedSteps] = useState([]);
+  // Flow state
+  const [userStories, setUserStories] = useState(
+    'As a user, I want to sign up, log in, and see a dashboard.'
+  )
+  const [branch, setBranch] = useState(null)
+  const [tech, setTech]     = useState(null)
+  const [genState, setGenState] = useState('idle')
+  const [project, setProject]   = useState(null)
+  const [completed, setCompleted] = useState([])
 
-  // Current step logic
-  const getCurrentStep = () => {
-    if (activeSection === 'stories') return 'stories';
-    if (activeSection === 'branches') return 'branch';
-    if (activeSection === 'technologies') return 'tech';
-    if (activeSection === 'generator') return 'generate';
-    if (activeSection === 'results') return 'download';
-    return 'stories';
-  };
+  // Scroll helper
+  const scrollTo = id => {
+    refs[id]?.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
-  const scrollTo = (id) => {
-    sectionRefs[id].current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  // Current step
+  const currentStep = (() => {
+    if (activeSection === 'stories')  return 'stories'
+    if (activeSection === 'branches') return 'setup'
+    if (activeSection === 'results')  return 'download'
+    return null
+  })()
 
-  // Intersection Observer
+  // Observe sections
   useEffect(() => {
-    const observerOptions = {
-      root: null,
-      rootMargin: '0px',
-      threshold: 0.6,
-    };
+    const obs = new IntersectionObserver(
+      entries => entries.forEach(e => e.isIntersecting && setActiveSection(e.target.id)),
+      { threshold: 0.6 }
+    )
+    Object.values(refs).forEach(r => r.current && obs.observe(r.current))
+    return () => Object.values(refs).forEach(r => r.current && obs.unobserve(r.current))
+  }, [])
 
-    const observerCallback = (entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          setActiveSection(entry.target.id);
-        }
-      });
-    };
-
-    const observer = new IntersectionObserver(observerCallback, observerOptions);
-    Object.values(sectionRefs).forEach(ref => {
-      if (ref.current) observer.observe(ref.current);
-    });
-
-    return () => {
-      Object.values(sectionRefs).forEach(ref => {
-        if (ref.current) observer.unobserve(ref.current);
-      });
-    };
-  }, []);
-
+  // Handlers
   const handleStoriesNext = () => {
-    if (userStories.trim()) {
-      setCompletedSteps(prev => [...prev, 'stories']);
-      scrollTo('branches');
-    }
-  };
-
-  const handleBranchSelect = (branch) => {
-    setSelectedBranch(branch);
-    setCompletedSteps(prev => [...prev, 'branch']);
-    scrollTo('technologies');
-  };
-
-  const handleTechSelect = (tech) => {
-    setSelectedTech(tech);
-    setCompletedSteps(prev => [...prev, 'tech']);
-    scrollTo('generator');
-  };
-
+    if (!userStories.trim()) return
+    setCompleted(p => [...new Set([...p, 'stories'])])
+    scrollTo('branches')
+  }
+  const handleBranchSelect = b => {
+    setBranch(b)
+    setTech(null)
+    setGenState('idle')
+  }
+  const handleTechSelect = t => {
+    setTech(t)
+    setGenState('idle')
+  }
   const handleGenerate = () => {
-    setGenerationState('generating');
-    setCompletedSteps(prev => [...prev, 'generate']);
-    
-    // Simulate generation
+    setGenState('generating')
     setTimeout(() => {
-      const projectKey = `${selectedTech}-${selectedBranch}`;
-      setGeneratedProject(mockProjects[projectKey] || mockProjects['react-frontend']);
-      setGenerationState('ready');
-      scrollTo('results');
-    }, 3000);
-  };
-
+      const key = `${tech}-${branch}`
+      setProject(mockProjects[key] || mockProjects['react-frontend'])
+      setGenState('ready')
+      setCompleted(p => [...new Set([...p, 'setup'])])
+      scrollTo('results')
+    }, 2000)
+  }
   const handleDownload = () => {
-    // Simulate download
-    const projectName = `${selectedTech}-${selectedBranch}-project.zip`;
-    const blob = new Blob(['// Mock project files\n// Generated project structure'], { type: 'application/zip' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = projectName;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    setCompletedSteps(prev => [...prev, 'download']);
-  };
+    const name = `${tech}-${branch}-project.zip`
+    const blob = new Blob(['// code'], { type: 'application/zip' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = name; a.click()
+    URL.revokeObjectURL(url)
+    setCompleted(p => [...new Set([...p, 'download'])])
+  }
 
   return (
     <div className="bg-gray-900 text-white font-sans overflow-x-hidden">
-      {/* Progress Circuit */}
-      <ProgressCircuit currentStep={getCurrentStep()} completedSteps={completedSteps} />
-      
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-gray-900/90 backdrop-blur-sm border-b border-white/10">
+      {/* Stepper */}
+      {currentStep && (
+        <ProgressCircuit
+          scrollTo={scrollTo}
+          currentStep={currentStep}
+          completed={completed}
+        />
+      )}
+
+      {/* Navbar */}
+      <header className="fixed top-0 left-0 right-0 bg-gray-900/90 backdrop-blur-sm border-b border-white/10 z-50">
         <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <Bot size={28} className="text-red-500"/>
             <span className="text-2xl font-bold">CodeGen</span>
           </div>
-          <div className="hidden md:flex items-center space-x-2">
-            <NavLink sectionId="home" activeSection={activeSection} scrollTo={scrollTo}>Home</NavLink>
-            <NavLink sectionId="stories" activeSection={activeSection} scrollTo={scrollTo}>Stories</NavLink>
-            <NavLink sectionId="branches" activeSection={activeSection} scrollTo={scrollTo}>Branches</NavLink>
-            <NavLink sectionId="technologies" activeSection={activeSection} scrollTo={scrollTo}>Tech</NavLink>
-            <NavLink sectionId="generator" activeSection={activeSection} scrollTo={scrollTo}>Generate</NavLink>
-            <NavLink sectionId="results" activeSection={activeSection} scrollTo={scrollTo}>Results</NavLink>
+          <div className="hidden md:flex items-center space-x-4">
+            <NavLink to="home"    active={activeSection==='home'}    scrollTo={scrollTo}>Home</NavLink>
+            <NavLink to="stories" active={activeSection==='stories'} scrollTo={scrollTo}>Create</NavLink>
+            <NavLink to="results" active={activeSection==='results'} scrollTo={scrollTo}>Projects</NavLink>
           </div>
-          <button className="bg-red-500 text-white font-semibold px-5 py-2 rounded-md hover:bg-red-600 transition-colors">
-            Get Started
-          </button>
         </nav>
       </header>
 
-      {/* Scroll Container */}
+      {/* Main scroll container */}
       <main className="h-screen overflow-y-scroll snap-y snap-mandatory">
-        {/* Home Section */}
-        <Section ref={sectionRefs.home} id="home" className="bg-gray-900">
+        {/* Home */}
+        <Section
+          ref={refs.home}
+          id="home"
+          className="bg-gray-900"
+          bottomHexagon={{ position: '-bottom-16 left-1/4', color: 'bg-gray-800' }}
+        >
           <div className="text-center max-w-4xl">
             <h1 className="text-6xl md:text-8xl font-extrabold mb-4">
               <span className="text-red-500">//</span> AI agents that
@@ -265,215 +263,248 @@ export default function App() {
             <h1 className="text-6xl md:text-8xl font-extrabold text-blue-400 mb-8">
               build your code <span className="text-red-500">//</span>
             </h1>
-            <p className="max-w-3xl mx-auto text-gray-400 text-xl mb-12">
-              Describe your application in plain English. Our AI agent will understand your requirements,
-              structure the project, and generate production-ready code in the framework of your choice.
+            <p className="text-gray-400 text-xl mb-12">
+              Describe your app in plain English. We'll generate production-ready code.
             </p>
-            <button 
-              onClick={() => scrollTo('stories')} 
-              className="bg-red-500 text-white font-bold py-4 px-10 rounded-lg text-xl hover:bg-red-600 transition-all duration-300 transform hover:scale-105"
+            <button
+              onClick={() => scrollTo('stories')}
+              className="bg-red-500 py-4 px-10 rounded-lg text-xl font-bold hover:bg-red-600 transition-all"
             >
-              Start Building Now <ArrowRight className="inline ml-2" />
+              Start Building <ArrowRight className="inline ml-2"/>
             </button>
           </div>
         </Section>
 
-        {/* User Stories Section */}
-        <Section ref={sectionRefs.stories} id="stories" className="bg-gray-800">
-          <div className="w-full max-w-4xl text-center">
-            <h2 className="text-5xl font-bold mb-4">
-              <span className="text-red-500">//</span> Step 1: Your Vision
-            </h2>
-            <p className="text-gray-400 text-xl mb-8">Tell us what your application should do</p>
-            
-            <div className="bg-gray-900 p-8 rounded-2xl border border-white/10">
+        {/* Step 1: Stories */}
+        <Section
+          ref={refs.stories}
+          id="stories"
+          className="bg-gray-800"
+          topHexagon    ={{ position: '-top-16 right-[33%]', color: 'bg-gray-900' }}
+          bottomHexagon ={{ position: '-bottom-16 left-1/2',   color: 'bg-gray-900' }}
+        >
+          <div className="flex flex-col md:flex-row w-full max-w-4xl">
+            <div className="md:w-1/3 pr-8 text-left">
+              <h2 className="text-5xl font-bold mb-2">
+                <span className="text-red-500">//</span> Step 1
+              </h2>
+              <p className="text-gray-300 text-xl">Your Vision</p>
+            </div>
+            <div className="md:w-2/3 flex flex-col">
               <textarea
                 value={userStories}
-                onChange={(e) => setUserStories(e.target.value)}
-                placeholder="e.g., As a user, I want to view a list of products, add them to cart, and checkout securely..."
-                className="w-full h-40 p-6 bg-gray-800 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all text-lg"
+                onChange={e => setUserStories(e.target.value)}
+                className="w-full h-40 p-6 bg-gray-700 border border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 text-white"
               />
-              
-              <button
-                onClick={handleStoriesNext}
-                disabled={!userStories.trim()}
-                className="mt-6 bg-blue-500 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-blue-600 transition-all duration-300 transform hover:scale-105 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:scale-100"
-              >
-                Next: Choose Project Type <ArrowRight className="inline ml-2" />
-              </button>
-            </div>
-          </div>
-        </Section>
-
-        {/* Branches Section */}
-        <Section ref={sectionRefs.branches} id="branches" className="bg-gray-900">
-          <div className="w-full max-w-4xl text-center">
-            <h2 className="text-5xl font-bold mb-4">
-              <span className="text-red-500">//</span> Step 2: Project Type
-            </h2>
-            <p className="text-gray-400 text-xl mb-12">Choose your development path</p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div
-                onClick={() => handleBranchSelect('frontend')}
-                className="group p-8 border-2 border-white/20 rounded-2xl cursor-pointer transition-all duration-500 hover:border-blue-400 hover:bg-blue-400/5 hover:scale-105"
-              >
-                <div className="flex items-center justify-center mb-6">
-                  <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center group-hover:bg-blue-500/30 transition-colors">
-                    <Code className="text-blue-400" size={32} />
-                  </div>
-                </div>
-                <h3 className="text-3xl font-bold mb-4">Frontend</h3>
-                <p className="text-gray-400 text-lg">Generate user interfaces with modern frameworks like React, Vue, or Angular</p>
-                <div className="mt-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ArrowRight className="mx-auto text-blue-400" size={24} />
-                </div>
-              </div>
-              
-              <div
-                onClick={() => handleBranchSelect('backend')}
-                className="group p-8 border-2 border-white/20 rounded-2xl cursor-pointer transition-all duration-500 hover:border-green-400 hover:bg-green-400/5 hover:scale-105"
-              >
-                <div className="flex items-center justify-center mb-6">
-                  <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center group-hover:bg-green-500/30 transition-colors">
-                    <Server className="text-green-400" size={32} />
-                  </div>
-                </div>
-                <h3 className="text-3xl font-bold mb-4">Backend</h3>
-                <p className="text-gray-400 text-lg">Build robust server-side applications and APIs with Spring Boot, FastAPI, or Node.js</p>
-                <div className="mt-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <ArrowRight className="mx-auto text-green-400" size={24} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </Section>
-
-        {/* Technologies Section */}
-        <Section ref={sectionRefs.technologies} id="technologies" className="bg-gray-800">
-          <div className="w-full max-w-4xl text-center">
-            <h2 className="text-5xl font-bold mb-4">
-              <span className="text-red-500">//</span> Step 3: Technology
-            </h2>
-            <p className="text-gray-400 text-xl mb-12">
-              Select your preferred {selectedBranch} technology
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {selectedBranch && techOptions[selectedBranch].map(tech => (
-                <div
-                  key={tech.id}
-                  onClick={() => handleTechSelect(tech.id)}
-                  className="group p-6 border-2 border-white/20 rounded-xl cursor-pointer transition-all duration-300 hover:border-purple-400 hover:bg-purple-400/5 hover:scale-105"
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={handleStoriesNext}
+                  disabled={!userStories.trim()}
+                  className="bg-blue-500 py-3 px-8 rounded-lg text-lg font-bold hover:bg-blue-600 transition-all disabled:bg-gray-600"
                 >
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center group-hover:bg-purple-500/30 transition-colors">
-                      {tech.icon}
+                  Next: Project Setup <ArrowRight className="inline ml-2"/>
+                </button>
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        {/* Step 2: Project Setup */}
+        <Section
+          ref={refs.branches}
+          id="branches"
+          className="bg-gray-900"
+          topHexagon    ={{ position: '-top-16 left-[16.666%]', color: 'bg-gray-800' }}
+          bottomHexagon ={{ position: '-bottom-16 right-[25%]',   color: 'bg-gray-800' }}
+        >
+          <div className="flex flex-col md:flex-row w-full max-w-4xl">
+            <div className="md:w-1/3 pr-8 text-left">
+              <h2 className="text-5xl font-bold mb-2">
+                <span className="text-red-500">//</span> Step 2
+              </h2>
+              <p className="text-gray-300 text-xl">Project Setup</p>
+            </div>
+            <div className="md:w-2/3 space-y-8">
+              {!branch ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {['frontend','backend'].map(b => (
+                    <div
+                      key={b}
+                      onClick={() => handleBranchSelect(b)}
+                      className={clsx(
+                        'group relative p-8 border-2 rounded-2xl cursor-pointer transition-all duration-500 transform hover:scale-105',
+                        b === 'frontend'
+                          ? 'border-blue-400 hover:bg-blue-400/5'
+                          : 'border-green-400 hover:bg-green-400/5'
+                      )}
+                    >
+                      <div className="flex justify-center mb-6">
+                        <div className={clsx(
+                          'w-16 h-16 rounded-full flex items-center justify-center transition-colors duration-300',
+                          b === 'frontend'
+                            ? 'bg-blue-500/20 group-hover:bg-blue-500/30'
+                            : 'bg-green-500/20 group-hover:bg-green-500/30'
+                        )}>
+                          {b === 'frontend'
+                            ? <Code size={32} className="text-blue-400"/>
+                            : <Server size={32} className="text-green-400"/>}
+                        </div>
+                      </div>
+                      <h3 className="text-3xl font-bold mb-2 capitalize text-center">{b}</h3>
+                      <ArrowRight
+                        className={clsx(
+                          'absolute bottom-4 right-4 transition-opacity duration-300',
+                          b === 'frontend' ? 'text-blue-400' : 'text-green-400',
+                          'opacity-0 group-hover:opacity-100'
+                        )}
+                        size={24}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  {['frontend','backend'].map(b => {
+                    const color = b === 'frontend' ? 'blue' : 'green'
+                    return (
+                      <div
+                        key={b}
+                        onClick={() => handleBranchSelect(b)}
+                        className={clsx(
+                          'px-4 py-2 rounded-full border-2 cursor-pointer transition-all duration-300 transform hover:scale-105',
+                          branch === b
+                            ? `border-${color}-400 bg-${color}-400/10 text-${color}-400 scale-105`
+                            : 'border-white/20 text-gray-400 hover:border-white/40'
+                        )}
+                      >
+                        {b.charAt(0).toUpperCase() + b.slice(1)}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {branch && !tech && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {techOptions[branch].map(t => (
+                    <div
+                      key={t.id}
+                      onClick={() => handleTechSelect(t.id)}
+                      className="group relative p-6 border-2 border-white/20 rounded-xl cursor-pointer transition-all duration-500 transform hover:scale-105 hover:border-purple-400 hover:bg-purple-400/5"
+                    >
+                      <div className="flex justify-center mb-4">
+                        <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center group-hover:bg-purple-500/30 transition-colors duration-300">
+                          {t.icon}
+                        </div>
+                      </div>
+                      <h3 className="text-xl font-bold mb-2 text-center">{t.name}</h3>
+                      <ArrowRight
+                        className="absolute bottom-3 right-3 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        size={20}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {branch && tech && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {techOptions[branch].map(tOpt => (
+                    <div
+                      key={tOpt.id}
+                      onClick={() => handleTechSelect(tOpt.id)}
+                      className={clsx(
+                        'px-4 py-2 rounded-full border-2 cursor-pointer transition-all duration-300 transform hover:scale-105',
+                        tech === tOpt.id
+                          ? 'border-purple-400 bg-purple-400/10 text-purple-400 scale-105'
+                          : 'border-white/20 text-gray-400 hover:border-white/40'
+                      )}
+                    >
+                      {tOpt.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {branch && tech && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleGenerate}
+                    disabled={genState === 'generating'}
+                    className={clsx(
+                      'py-4 px-10 rounded-lg text-xl font-bold transition-all duration-300 flex items-center',
+                      genState === 'generating'
+                        ? 'bg-red-400 cursor-not-allowed'
+                        : 'bg-red-500 hover:bg-red-600 transform hover:scale-105'
+                    )}
+                  >
+                    {genState === 'generating' ? (
+                      <>
+                        <Loader size={20} className="animate-spin mr-3"/>Generating...
+                      </>
+                    ) : (
+                      <>
+                        <BrainCircuit className="mr-3" size={20}/>Generate
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </Section>
+
+        {/* Step 3: Results */}
+        <Section
+          ref={refs.results}
+          id="results"
+          className="bg-gray-800"
+          topHexagon={{ position: '-top-16 left-[16.666%]', color: 'bg-gray-900' }}
+        >
+          <div className="flex flex-col md:flex-row w-full max-w-4xl">
+            <div className="md:w-1/3 pr-8 text-left">
+              <h2 className="text-5xl font-bold mb-2">
+                <span className="text-red-500">//</span> Step 3
+              </h2>
+              <p className="text-gray-300 text-xl">Your Project</p>
+            </div>
+            <div className="md:w-2/3">
+              {genState === 'ready' && project && (
+                <div className="bg-gray-900 p-8 rounded-2xl border border-white/10">
+                  <div className="flex justify-center mb-6">
+                    <CheckCircle size={64} className="text-green-400"/>
+                  </div>
+                  <h3 className="text-3xl font-bold mb-4 capitalize text-center">
+                    {tech} {branch} Ready!
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div>
+                      <h4 className="font-bold text-blue-400 mb-3">Files</h4>
+                      <ul className="text-gray-400 space-y-1">
+                        {project.files.map(f => <li key={f}>📄 {f}</li>)}
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-purple-400 mb-3">Features</h4>
+                      <ul className="text-gray-400 space-y-1">
+                        {project.features.map(fe => <li key={fe}>✨ {fe}</li>)}
+                      </ul>
                     </div>
                   </div>
-                  <h3 className="text-xl font-bold mb-2">{tech.name}</h3>
-                  <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ArrowRight className="mx-auto text-purple-400" size={20} />
+                  <div className="flex justify-center">
+                    <button
+                      onClick={handleDownload}
+                      className="bg-green-500 py-4 px-10 rounded-lg text-xl font-bold hover:bg-green-600 transition-all transform hover:scale-105"
+                    >
+                      <Download className="inline mr-3"/>Download ZIP
+                    </button>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Section>
-
-        {/* Generator Section */}
-        <Section ref={sectionRefs.generator} id="generator" className="bg-gray-900">
-          <div className="w-full max-w-4xl text-center">
-            <h2 className="text-5xl font-bold mb-4">
-              <span className="text-red-500">//</span> Step 4: Generate
-            </h2>
-            <p className="text-gray-400 text-xl mb-12">Ready to create your project?</p>
-            
-            <div className="bg-gray-800 p-8 rounded-2xl border border-white/10 mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="text-left">
-                  <h4 className="font-bold text-blue-400 mb-2">User Stories</h4>
-                  <p className="text-sm text-gray-400 truncate">{userStories}</p>
-                </div>
-                <div className="text-left">
-                  <h4 className="font-bold text-purple-400 mb-2">Project Type</h4>
-                  <p className="text-sm text-gray-400 capitalize">{selectedBranch}</p>
-                </div>
-                <div className="text-left">
-                  <h4 className="font-bold text-green-400 mb-2">Technology</h4>
-                  <p className="text-sm text-gray-400">{selectedTech}</p>
-                </div>
-              </div>
-              
-              {generationState === 'idle' && (
-                <button
-                  onClick={handleGenerate}
-                  className="bg-red-500 text-white font-bold py-4 px-10 rounded-lg text-xl hover:bg-red-600 transition-all duration-300 transform hover:scale-105"
-                >
-                  <BrainCircuit className="inline mr-3" />
-                  Generate My Code
-                </button>
-              )}
-              
-              {generationState === 'generating' && (
-                <div className="flex flex-col items-center">
-                  <Loader size={48} className="text-blue-400 mb-4 animate-spin"/>
-                  <p className="text-xl font-semibold">AI is analyzing and generating...</p>
-                  <p className="text-gray-400 mt-2">This may take a moment</p>
                 </div>
               )}
             </div>
-          </div>
-        </Section>
-
-        {/* Results Section */}
-        <Section ref={sectionRefs.results} id="results" className="bg-gray-800">
-          <div className="w-full max-w-4xl text-center">
-            <h2 className="text-5xl font-bold mb-4">
-              <span className="text-red-500">//</span> Step 5: Your Project
-            </h2>
-            
-            {generationState === 'ready' && generatedProject && (
-              <div className="bg-gray-900 p-8 rounded-2xl border border-white/10">
-                <div className="flex items-center justify-center mb-6">
-                  <CheckCircle size={64} className="text-green-400"/>
-                </div>
-                
-                <h3 className="text-3xl font-bold mb-4 capitalize">
-                  {selectedTech} {selectedBranch} Project Ready!
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                  <div className="text-left">
-                    <h4 className="font-bold text-blue-400 mb-3">Generated Files</h4>
-                    <ul className="text-sm text-gray-400 space-y-1">
-                      {generatedProject.files.map(file => (
-                        <li key={file}>📄 {file}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="text-left">
-                    <h4 className="font-bold text-purple-400 mb-3">Features Included</h4>
-                    <ul className="text-sm text-gray-400 space-y-1">
-                      {generatedProject.features.map(feature => (
-                        <li key={feature}>✨ {feature}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                
-                <button
-                  onClick={handleDownload}
-                  className="bg-green-500 text-white font-bold py-4 px-10 rounded-lg text-xl hover:bg-green-600 transition-all duration-300 transform hover:scale-105"
-                >
-                  <Download className="inline mr-3" />
-                  Download Project ZIP
-                </button>
-              </div>
-            )}
           </div>
         </Section>
       </main>
     </div>
-  );
+  )
 }
