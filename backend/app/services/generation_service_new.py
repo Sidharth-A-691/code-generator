@@ -1,10 +1,11 @@
 import os
 import json
-from utils.llms import model, filesystem_agent_executor
+from typing import List, Dict, Any
+from pydantic.v1 import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
-from pydantic.v1 import BaseModel, Field 
-from typing import List
+
+from utils.llms import model, filesystem_agent_executor
 
 class ScaffoldingResponse(BaseModel):
     high_level_design: str = Field(description="A high-level overview of the application architecture, components, and user flow.")
@@ -12,6 +13,12 @@ class ScaffoldingResponse(BaseModel):
     plan: List[str] = Field(description="A step-by-step plan of agent tool calls to create the project structure and files.")
 
 class CodeGenerationService:
+    def __init__(self):
+        """
+        Initializes the service. No session management is needed in this architecture.
+        """
+        pass
+
     def _create_structured_plan(self, user_stories: str, project_type: str, language: str) -> ScaffoldingResponse:
         """
         Creates a detailed design and scaffolding plan, returning it as a structured JSON object.
@@ -86,9 +93,11 @@ class CodeGenerationService:
         """
         try:
             result = filesystem_agent_executor.invoke({"input": execution_prompt})
+            final_output = result.get('output', 'Agent execution finished with no final output.')
             print("--- Plan Execution Finished ---")
-            print(f"Final output from agent: {result.get('output', 'No output captured.')}")
-            return {"success": True, "output": "Plan executed successfully."}
+            print(f"Final output from agent: {final_output}")
+            
+            return {"success": True, "details": final_output}
         except Exception as e:
             print(f"ERROR: An error occurred during plan execution: {e}")
             raise
@@ -111,8 +120,44 @@ class CodeGenerationService:
         print(json.dumps(structured_response['plan'], indent=2))
 
         print("\nStep 2: Handing off Scaffolding Plan to Agent for execution...")
-        result = self._execute_plan(structured_response['plan'], output_directory)
         
+        result = self._execute_plan(structured_response['plan'], output_directory)
         return result
+
+    def list_directory_recursive(self, path: str) -> List[Dict[str, Any]]:
+        """
+        Recursively lists files and directories for a given path.
+        Returns a list suitable for building a file tree in the UI.
+        """
+        file_tree = []
+        for entry in os.scandir(path):
+            node = {
+                "name": entry.name,
+                "path": os.path.relpath(entry.path, start=os.path.dirname(path)),
+                "type": "directory" if entry.is_dir() else "file"
+            }
+            if entry.is_dir():
+                node["children"] = self.list_directory_recursive(entry.path)
+            file_tree.append(node)
+        return file_tree
+
+    def read_file_content(self, file_path: str) -> str:
+        """Reads and returns the content of a specific file."""
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found at: {file_path}")
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+
+    def write_file_content(self, file_path: str, content: str) -> None:
+        """Writes content to a specific file, creating parent directories if necessary."""
+        try:
+            parent_dir = os.path.dirname(file_path)
+            if not os.path.exists(parent_dir):
+                os.makedirs(parent_dir)
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except Exception as e:
+            raise IOError(f"Could not write to file at {file_path}: {e}")
 
 generation_service = CodeGenerationService()
