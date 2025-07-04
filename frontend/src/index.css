@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+/* index.css */
+
+/* 1) Set up CSS vars for both themes */
+:root {
+  --scrollbar-width: 8px;
+  --scrollbar-radius: 4px;
+}
+
+:root[data-theme='light'] {
+  --scrollbar-track: #f3f4f6;    /* Tailwind gray-100 */
+  --scrollbar-thumb: #9ca3af;    /* Tailwind gray-400 */
+}
+
+:root[data-theme='dark'] {
+  --scrollbar-track: #374151;    /* Tailwind gray-700 */
+  --scrollbar-thumb: #6b7280;    /* Tailwind gray-500 */
+}
+
+/* 2) Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* 3) WebKit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-width);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: var(--scrollbar-radius);
+  border: 2px solid var(--scrollbar-track);
+}
+
+/* Optional: hide corner square */
+::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
+}
