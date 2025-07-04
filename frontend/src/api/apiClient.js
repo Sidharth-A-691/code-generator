@@ -11,12 +11,12 @@ export function generateCode(payload) {
 }
 
 // File tree
-export function getFileTree(output_directory, project_name) {
+export function getFileTree(project_name) {
   return api.get('/files/tree', { params:{ project_name }})
 }
 
 // File content
-export function getFileContent(output_directory, project_name, relative_path) {
+export function getFileContent(project_name, relative_path) {
   return api.get('/files/content', {
     params:{ project_name, relative_path }
   })

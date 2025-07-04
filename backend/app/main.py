@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(generation_router, prefix="/api", tags=["Code Generation"])
+app.include_router(generation_router, prefix="/api", tags=["Code Generation","File System API"])
 
 @app.get("/")
 def read_root():

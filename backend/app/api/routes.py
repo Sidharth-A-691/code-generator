@@ -4,6 +4,9 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from services.generation_service_new import generation_service
+from utils.config import settings
+from utils.logger import logger
+from urllib.parse import unquote
 
 router = APIRouter()
 
@@ -11,7 +14,6 @@ class GenerationRequest(BaseModel):
     user_stories: str = Field(...)
     project_type: str = Field(...)
     language: str = Field(...)
-    output_directory: str = Field(...)
     
 class GenerationResponse(BaseModel):
     message: str
@@ -19,11 +21,9 @@ class GenerationResponse(BaseModel):
     low_level_design: str
 
 class DownloadRequest(BaseModel):
-    output_directory: str = Field(...)
     project_name: str = Field(...)
 
 class FileWriteRequest(BaseModel):
-    output_directory: str = Field(..., description="The absolute base path used during generation.")
     project_name: str = Field(..., description="The name of the project folder.")
     relative_path: str = Field(..., description="The relative path of the file within the project folder to write to.")
     content: str = Field(..., description="The new content of the file.")
@@ -57,7 +57,7 @@ async def generate_code(request: GenerationRequest, background_tasks: Background
         background_tasks.add_task(
             generation_service._execute_plan,
             plan_steps=plan_steps,
-            output_directory=request.output_directory
+            output_directory=settings.OUTPUT_DIRECTORY
         )
         print("\nStep 3: Returning HLD and LLD to client immediately.")
         return GenerationResponse(
@@ -71,11 +71,12 @@ async def generate_code(request: GenerationRequest, background_tasks: Background
 
 # --- NEW FILE SYSTEM API ENDPOINTS ---
 
-@router.get("/api/files/tree", tags=["File System API"])
-async def get_file_tree(output_directory: str = Query(...), project_name: str = Query(...)):
+@router.get("/files/tree", tags=["File System API"])
+async def get_file_tree(project_name: str = Query(...)):
     """Returns the recursive file and folder structure of a generated project."""
     try:
-        project_path = get_safe_project_path(output_directory, project_name)
+        project_path = get_safe_project_path(settings.OUTPUT_DIRECTORY, project_name)
+        print(settings.OUTPUT_DIRECTORY)
         tree = generation_service.list_directory_recursive(project_path)
         return tree
     except HTTPException as e:
@@ -83,12 +84,13 @@ async def get_file_tree(output_directory: str = Query(...), project_name: str = 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list directory: {e}")
 
-@router.get("/api/files/content", tags=["File System API"])
-async def get_file_content(output_directory: str = Query(...), project_name: str = Query(...), relative_path: str = Query(...)):
+@router.get("/files/content", tags=["File System API"])
+async def get_file_content(project_name: str = Query(...), relative_path: str = Query(...)):
     """Returns the content of a specific file."""
     try:
-        project_path = get_safe_project_path(output_directory, project_name)
+        project_path = get_safe_project_path(settings.OUTPUT_DIRECTORY, project_name)
         file_path = os.path.abspath(os.path.join(project_path, relative_path))
+        logger.info(file_path)
         if not file_path.startswith(project_path):
             raise HTTPException(status_code=400, detail="Invalid path: Path traversal detected.")
         
@@ -101,11 +103,11 @@ async def get_file_content(output_directory: str = Query(...), project_name: str
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read file: {e}")
 
-@router.post("/api/files/content", tags=["File System API"])
+@router.post("/files/content", tags=["File System API"])
 async def write_file_content(request: FileWriteRequest):
     """Writes content to a specific file."""
     try:
-        project_path = get_safe_project_path(request.output_directory, request.project_name)
+        project_path = get_safe_project_path(settings.OUTPUT_DIRECTORY, request.project_name)
         file_path = os.path.abspath(os.path.join(project_path, request.relative_path))
         if not file_path.startswith(project_path):
             raise HTTPException(status_code=400, detail="Invalid path: Path traversal detected.")

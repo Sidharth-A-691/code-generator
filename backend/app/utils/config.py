@@ -14,4 +14,6 @@ class Settings:
     AZURE_OPENAI_EMBED_MODEL: str = os.getenv("AZURE_OPENAI_EMBED_MODEL")
     AZURE_OPENAI_EMBED_VERSION: str = os.getenv("AZURE_OPENAI_EMBED_VERSION")
 
+    OUTPUT_DIRECTORY: str = os.getenv("OUTPUT_DIRECTORY")
+
 settings = Settings()

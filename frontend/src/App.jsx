@@ -387,7 +387,6 @@ const HomePage = () => {
     setCurrentStep,
     design,
     setDesign,
-    outputDir,
     setProjectName
   } = useAppState()
 
@@ -441,7 +440,6 @@ const HomePage = () => {
       user_stories: userStories,
       project_type: branch,
       language: tech,
-      output_directory: outputDir,
       project_name: projectName
     })
       .then((res) => {
@@ -457,7 +455,6 @@ const HomePage = () => {
             completedSteps: newSteps,
             currentStep: 'download',
             design: res.data,
-            outputDir,
             projectName
           })
           return newSteps
@@ -784,7 +781,7 @@ const HomePage = () => {
 const EditorPage = () => {
   const { theme } = useTheme()
   const navigate = useNavigate()
-  const { completedSteps, outputDir, projectName } = useAppState()
+  const { completedSteps, projectName } = useAppState()
   const [tree, setTree] = useState([])
   const [currentFile, setCurrentFile] = useState(null)
   const [code, setCode] = useState('')
@@ -798,15 +795,15 @@ const EditorPage = () => {
   }, [completedSteps, navigate])
 
   useEffect(() => {
-    if (outputDir && projectName) {
-      getFileTree(decodeURIComponent(outputDir), decodeURIComponent(projectName))
+    if (projectName) {
+      getFileTree(decodeURIComponent(projectName))
         .then((res) => setTree(res.data))
         .catch(console.error)
     }
-  }, [outputDir, projectName])
+  }, [projectName])
 
   const openFile = (relPath) => {
-    getFileContent(decodeURIComponent(outputDir), decodeURIComponent(projectName), relPath)
+    getFileContent( decodeURIComponent(projectName), relPath)
       .then((res) => {
         setCurrentFile(relPath)
         setCode(res.data.content)
@@ -818,7 +815,6 @@ const EditorPage = () => {
     if (!currentFile) return
     setSaving(true)
     writeFileContent({
-      output_directory: decodeURIComponent(outputDir),
       project_name: decodeURIComponent(projectName),
       relative_path: currentFile,
       content: code
@@ -830,7 +826,6 @@ const EditorPage = () => {
 
   const download = () => {
     downloadProject({
-      output_directory: decodeURIComponent(outputDir),
       project_name: decodeURIComponent(projectName)
     })
       .then((resp) => {
@@ -945,7 +940,6 @@ export default function App() {
   const [completedSteps, setCompletedSteps] = useState([])
   const [currentStep, setCurrentStep] = useState('stories')
   const [design, setDesign] = useState(null)
-  const [outputDir, setOutputDir] = useState('C:/temp/projects')
   const [projectName, setProjectName] = useState('')
 
   // Hydration flag
@@ -963,7 +957,6 @@ export default function App() {
       setCompletedSteps(loaded.completedSteps)
       setCurrentStep(loaded.currentStep)
       setDesign(loaded.design)
-      setOutputDir(loaded.outputDir)
       setProjectName(loaded.projectName)
     }
     setHydrated(true)
@@ -981,7 +974,6 @@ export default function App() {
       completedSteps,
       currentStep,
       design,
-      outputDir,
       projectName
     })
   }, [
@@ -994,7 +986,6 @@ export default function App() {
     completedSteps,
     currentStep,
     design,
-    outputDir,
     projectName
   ])
 
@@ -1015,8 +1006,6 @@ export default function App() {
     setCurrentStep,
     design,
     setDesign,
-    outputDir,
-    setOutputDir,
     projectName,
     setProjectName
   }
