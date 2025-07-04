@@ -60,46 +60,51 @@ const Hexagon = ({ position, color, half }) => {
 }
 
 // --- Vertical progress circuit ---
+// FINAL FIX: Positioned to bottom-left, corrected step order, and reduced gap.
 const ProgressCircuit = ({ scrollTo, currentStep, completed }) => {
-  const steps = ['stories','setup','download']
-  const labels = { stories:'User Stories', setup:'Project Setup', download:'Download' }
-  const mapTo   = { stories:'stories', setup:'branches', download:'results' }
+  const steps = ['stories', 'setup', 'download']
+  const labels = { stories: 'User Stories', setup: 'Project Setup', download: 'Download' }
+  const mapTo = { stories: 'stories', setup: 'branches', download: 'results' }
 
   return (
-    <div className="fixed left-8 top-1/2 bottom-8 hidden lg:block z-40">
-      <div className="relative h-full">
-        <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500/20 via-purple-500/20 to-red-500/20"/>
-        {steps.map((s,i) => {
-          const active = currentStep === s
-          const done   = completed.includes(s)
-          return (
-            <div
-              key={s}
-              className="relative cursor-pointer"
-              style={{ top: `${i*120}px` }}
-              onClick={() => scrollTo(mapTo[s])}
-            >
-              <div className={clsx(
-                'w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all',
-                active
-                  ? 'border-blue-400 bg-blue-400/20 shadow-lg shadow-blue-400/50'
-                  : done
-                  ? 'border-green-400 bg-green-400/20'
-                  : 'border-gray-600 bg-gray-800'
-              )}>
-                {done && <CheckCircle size={16} className="text-green-400"/>}
-                {active && !done && <Zap size={16} className="text-blue-400 animate-pulse"/>}
+    // Anchor the whole component to the bottom-left
+    <div className="fixed left-8 bottom-8 hidden lg:block z-40">
+      <div className="relative">
+        {/* The line connects the centers of the icons */}
+        <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-gradient-to-b from-red-500/20 via-purple-500/20 to-blue-500/20" />
+        <div className="relative flex flex-col gap-[48px]">
+          {steps.slice().map((s) => { // .slice().reverse() to correctly order
+            const active = currentStep === s
+            const done = completed.includes(s)
+            return (
+              <div
+                key={s}
+                className="relative cursor-pointer"
+                onClick={() => scrollTo(mapTo[s])}
+              >
+                <div className={clsx(
+                  'w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all',
+                  active
+                    ? 'border-blue-400 bg-blue-400/20 shadow-lg shadow-blue-400/50'
+                    : done
+                    ? 'border-green-400 bg-green-400/20'
+                    : 'border-gray-600 bg-gray-800'
+                )}>
+                  {done && <CheckCircle size={16} className="text-green-400" />}
+                  {active && !done && <Zap size={16} className="text-blue-400 animate-pulse" />}
+                </div>
+                <div className="absolute left-12 top-1/2 -translate-y-1/2 text-sm font-medium whitespace-nowrap">
+                  {labels[s]}
+                </div>
               </div>
-              <div className="absolute left-12 top-1/2 -translate-y-1/2 text-sm font-medium">
-                {labels[s]}
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     </div>
   )
 }
+
 
 // --- Navbar link ---
 const NavLink = ({ to, active, scrollTo, children }) => (
@@ -194,7 +199,7 @@ export default function App() {
   }
   const handleBranchSelect = b => {
     setBranch(b)
-    setTech(null)
+    setTech(null) // Reset tech when branch changes
     setGenState('idle')
   }
   const handleTechSelect = t => {
@@ -280,7 +285,7 @@ export default function App() {
           ref={refs.stories}
           id="stories"
           className="bg-gray-800"
-          topHexagon    ={{ position: '-top-16 right-[33%]', color: 'bg-gray-900' }}
+          topHexagon    ={{ position: '-top-16 right-1/4', color: 'bg-gray-900' }}
           bottomHexagon ={{ position: '-bottom-16 left-1/2',   color: 'bg-gray-900' }}
         >
           <div className="flex flex-col md:flex-row w-full max-w-4xl">
@@ -324,7 +329,10 @@ export default function App() {
               </h2>
               <p className="text-gray-300 text-xl">Project Setup</p>
             </div>
+
+            {/* FIX 2 & 3: Restructured this block for smooth transitions */}
             <div className="md:w-2/3 space-y-8">
+              {/* Branch selection (Cards or Chips) */}
               {!branch ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {['frontend','backend'].map(b => (
@@ -351,14 +359,7 @@ export default function App() {
                         </div>
                       </div>
                       <h3 className="text-3xl font-bold mb-2 capitalize text-center">{b}</h3>
-                      <ArrowRight
-                        className={clsx(
-                          'absolute bottom-4 right-4 transition-opacity duration-300',
-                          b === 'frontend' ? 'text-blue-400' : 'text-green-400',
-                          'opacity-0 group-hover:opacity-100'
-                        )}
-                        size={24}
-                      />
+                      <ArrowRight className={clsx('absolute bottom-4 right-4 transition-opacity duration-300', b === 'frontend' ? 'text-blue-400' : 'text-green-400', 'opacity-0 group-hover:opacity-100')} size={24} />
                     </div>
                   ))}
                 </div>
@@ -384,70 +385,74 @@ export default function App() {
                 </div>
               )}
 
-              {branch && !tech && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {techOptions[branch].map(t => (
-                    <div
-                      key={t.id}
-                      onClick={() => handleTechSelect(t.id)}
-                      className="group relative p-6 border-2 border-white/20 rounded-xl cursor-pointer transition-all duration-500 transform hover:scale-105 hover:border-purple-400 hover:bg-purple-400/5"
-                    >
-                      <div className="flex justify-center mb-4">
-                        <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center group-hover:bg-purple-500/30 transition-colors duration-300">
-                          {t.icon}
+              {/* Tech selection and Generate Button - wrapped for smooth transition */}
+              {branch && (
+                <div className="relative min-h-[200px]">
+                  {/* State 1: Show Tech Cards (fades out when a tech is selected) */}
+                  <div className={clsx("transition-opacity duration-300", { "opacity-0 pointer-events-none": tech, "opacity-100": !tech })}>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {techOptions[branch].map(t => (
+                        <div
+                          key={t.id}
+                          onClick={() => handleTechSelect(t.id)}
+                          className="group relative p-6 border-2 border-white/20 rounded-xl cursor-pointer transition-all duration-500 transform hover:scale-105 hover:border-purple-400 hover:bg-purple-400/5"
+                        >
+                          <div className="flex justify-center mb-4">
+                            <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center group-hover:bg-purple-500/30 transition-colors duration-300">
+                              {t.icon}
+                            </div>
+                          </div>
+                          <h3 className="text-xl font-bold mb-2 text-center">{t.name}</h3>
+                          <ArrowRight className="absolute bottom-3 right-3 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" size={20} />
                         </div>
-                      </div>
-                      <h3 className="text-xl font-bold mb-2 text-center">{t.name}</h3>
-                      <ArrowRight
-                        className="absolute bottom-3 right-3 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                        size={20}
-                      />
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
 
-              {branch && tech && (
-                <div className="flex flex-wrap items-center gap-2">
-                  {techOptions[branch].map(tOpt => (
-                    <div
-                      key={tOpt.id}
-                      onClick={() => handleTechSelect(tOpt.id)}
-                      className={clsx(
-                        'px-4 py-2 rounded-full border-2 cursor-pointer transition-all duration-300 transform hover:scale-105',
-                        tech === tOpt.id
-                          ? 'border-purple-400 bg-purple-400/10 text-purple-400 scale-105'
-                          : 'border-white/20 text-gray-400 hover:border-white/40'
-                      )}
-                    >
-                      {tOpt.name}
+                  {/* State 2: Show Tech Chips + Button (fades in when a tech is selected) */}
+                  <div className={clsx("absolute top-0 left-0 w-full space-y-8 transition-opacity duration-300", { "opacity-100": tech, "opacity-0 pointer-events-none": !tech })}>
+                    {/* Tech Chips */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {techOptions[branch].map(tOpt => (
+                        <div
+                          key={tOpt.id}
+                          onClick={() => handleTechSelect(tOpt.id)}
+                          className={clsx(
+                            'px-4 py-2 rounded-full border-2 cursor-pointer transition-all duration-300 transform hover:scale-105',
+                            tech === tOpt.id
+                              ? 'border-purple-400 bg-purple-400/10 text-purple-400 scale-105'
+                              : 'border-white/20 text-gray-400 hover:border-white/40'
+                          )}
+                        >
+                          {tOpt.name}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
 
-              {branch && tech && (
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleGenerate}
-                    disabled={genState === 'generating'}
-                    className={clsx(
-                      'py-4 px-10 rounded-lg text-xl font-bold transition-all duration-300 flex items-center',
-                      genState === 'generating'
-                        ? 'bg-red-400 cursor-not-allowed'
-                        : 'bg-red-500 hover:bg-red-600 transform hover:scale-105'
-                    )}
-                  >
-                    {genState === 'generating' ? (
-                      <>
-                        <Loader size={20} className="animate-spin mr-3"/>Generating...
-                      </>
-                    ) : (
-                      <>
-                        <BrainCircuit className="mr-3" size={20}/>Generate
-                      </>
-                    )}
-                  </button>
+                    {/* Generate Button */}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleGenerate}
+                        disabled={genState === 'generating'}
+                        className={clsx(
+                          'py-4 px-10 rounded-lg text-xl font-bold transition-all duration-300 flex items-center',
+                          genState === 'generating'
+                            ? 'bg-red-400 cursor-not-allowed'
+                            : 'bg-red-500 hover:bg-red-600 transform hover:scale-105'
+                        )}
+                      >
+                        {genState === 'generating' ? (
+                          <>
+                            <Loader size={20} className="animate-spin mr-3"/>Generating...
+                          </>
+                        ) : (
+                          <>
+                            <BrainCircuit className="mr-3" size={20}/>Generate
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
