@@ -38,8 +38,8 @@ class CodeGenerationService:
         {format_instructions}
 
         **Design and Plan Details:**
-        1.  **high_level_design**: Describe the application's architecture. What are the major components? How do they interact?
-        2.  **low_level_design**: Define the specifics. If there's a database, define the table schemas. For APIs, define the endpoints (e.g., POST /api/users), and the JSON request/response bodies.
+        1.  **high_level_design**: Describe the application's architecture. What are the major components? How do they interact? Everything must be in detail.
+        2.  **low_level_design**: Define the specifics. If there's a database, define the table schemas. For APIs, define the endpoints (e.g., POST /api/users), and the JSON request/response bodies. Everything must be in detail.
         3.  **plan**: Provide a step-by-step list of commands for the AI agent. This plan will be executed to build the project.
             - Start with a high-level tool call like `create_springboot_project` or `create_react_vite_project`.
             - Follow with low-level tool calls like `write_file` or `create_directory` to modify the base project.
@@ -47,9 +47,38 @@ class CodeGenerationService:
 
         **Example for 'plan' (springboot):**
         ["Create a new Spring Boot project using the `create_springboot_project` tool with the `artifact_id` set to 'backend'.", "Write a new file named `backend/src/main/java/com/example/backend/model/User.java`. It should be a JPA Entity for a 'users' table.", "Write a new file named `backend/src/main/java/com/example/backend/repository/UserRepository.java`. It should be a JpaRepository interface for the User entity."]
-        
+
         **Example for 'plan' (react):**
         ["Create a new React project using the `create_react_vite_project` tool with the `project_name` set to 'frontend'.", "Create a new directory named `frontend/src/components`.", "Write a new file named `frontend/src/components/LoginForm.jsx`.", "Overwrite the existing file named `frontend/src/App.jsx` to import and render the `LoginForm` component."]
+
+        ---
+        **CRUCIAL GUIDELINES FOR REACT FRONTEND PLAN:**
+        When designing the 'plan' for a React project, you must adhere to the following principles to ensure a professional, functional, and maintainable application:
+
+        1.  **Component-Based Architecture:**
+            - Break down the UI into logical, reusable components (e.g., `Header.jsx`, `LoginForm.jsx`, `UserList.jsx`).
+            - For each component, the plan must include a `write_file` command to create its own `.jsx` file inside a `components` directory.
+
+        2.  **Styling with Native CSS:**
+            - Create a main `App.css` file for global styles (fonts, body background, etc.) and ensure it's imported in `App.jsx`.
+            - For individual components, write clean, modern CSS. Use modern layout techniques like Flexbox or Grid to create professional-looking layouts.
+            - The final UI should not look like unstyled HTML. It needs padding, margins, a consistent color scheme, and good typography.
+
+        3.  **State Management and Logic:**
+            - Implement all necessary JavaScript logic within the components to make them interactive.
+            - Use React hooks like `useState` to manage state (e.g., form input values) and `useEffect` for side effects.
+            - Event handlers (like `onClick`, `onChange`, `onSubmit`) must be correctly implemented.
+
+        4.  **Connectivity and Imports (MOST IMPORTANT):**
+            - This is critical: **You MUST ensure all component and CSS imports are correct.**
+            - When a parent component (e.g., `App.jsx`) uses a child component (e.g., `LoginForm.jsx`), the `write_file` or `overwrite_file` command for the parent component's content **MUST** include the correct import statement at the top (e.g., `import LoginForm from './components/LoginForm';`).
+            - A failure to include correct imports will result in a broken application. Double-check all relative paths.
+            - Make sure to import the necessary css files from the syles folder (ensure path is correct)
+
+        5.  **Completeness:**
+            - The plan must be comprehensive enough to generate a fully working application that fulfills the user stories from the start.
+            - The final generated code should run without console errors related to syntax or missing imports.
+        ---
 
         Provide the final JSON response now.
         """
