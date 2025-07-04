@@ -12,6 +12,11 @@ class GenerationRequest(BaseModel):
     project_type: str = Field(...)
     language: str = Field(...)
     output_directory: str = Field(...)
+    
+class GenerationResponse(BaseModel):
+    message: str
+    high_level_design: str
+    low_level_design: str
 
 class DownloadRequest(BaseModel):
     output_directory: str = Field(...)
@@ -32,20 +37,37 @@ def get_safe_project_path(base_dir: str, project_name: str) -> str:
         raise HTTPException(status_code=404, detail=f"Project directory not found at: {project_path}")
     return project_path
 
-@router.post("/generate", tags=["Code Generation"])
+@router.post("/generate", response_model=GenerationResponse, tags=["Code Generation"])
 async def generate_code(request: GenerationRequest, background_tasks: BackgroundTasks):
-    """Kicks off the code generation process as a background task."""
+    """
+    Kicks off the code generation process.
+    1. Synchronously generates the design and plan.
+    2. Immediately returns the high-level and low-level designs.
+    3. Executes the plan to write files as a background task.
+    """
     try:
-        background_tasks.add_task(
-            generation_service.generate_application,
-            request.user_stories,
-            request.project_type,
-            request.language,
-            request.output_directory
+        print("Step 1: Generating structured designs and plan from Azure OpenAI...")
+        structured_response = generation_service._create_structured_plan(
+            user_stories=request.user_stories,
+            project_type=request.project_type,
+            language=request.language
         )
-        return {"message": "Code generation process started successfully."}
+        print("\nStep 2: Handing off Scaffolding Plan to Agent for background execution...")
+        plan_steps = structured_response['plan']
+        background_tasks.add_task(
+            generation_service._execute_plan,
+            plan_steps=plan_steps,
+            output_directory=request.output_directory
+        )
+        print("\nStep 3: Returning HLD and LLD to client immediately.")
+        return GenerationResponse(
+            message="Design phase complete. Code generation is running in the background.",
+            high_level_design=structured_response['high_level_design'],
+            low_level_design=structured_response['low_level_design']
+        )
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed during the design phase: {str(e)}")
 
 # --- NEW FILE SYSTEM API ENDPOINTS ---
 
