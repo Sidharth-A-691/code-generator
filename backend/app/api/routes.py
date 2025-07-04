@@ -125,12 +125,11 @@ async def download_project(request: DownloadRequest):
     """Zips the project directory and returns it for download."""
     try:
         # project_path = get_safe_project_path(request.output_directory, request.project_name)
-        zip_base_path = os.path.join(request.output_directory, request.project_name)
-        
+        zip_base_path = os.path.join(settings.OUTPUT_DIRECTORY, request.project_name)
         zip_file_path = shutil.make_archive(
             base_name=zip_base_path,
             format='zip',
-            root_dir=request.output_directory,
+            root_dir=settings.OUTPUT_DIRECTORY,
             base_dir=request.project_name
         )
         zip_filename = os.path.basename(zip_file_path)

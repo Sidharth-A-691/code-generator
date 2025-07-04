@@ -117,7 +117,7 @@ const ThemeToggle = () => {
     <button
       onClick={toggleTheme}
       className={clsx(
-        'p-2 rounded-lg transition-all duration-300 hover:scale-110',
+        'p-2 rounded-lg transition-all duration-300 hover:scale-110 cursor-pointer',
         isDarkMode
           ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700'
           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -222,33 +222,27 @@ const Hexagon = ({ position, color, half }) => {
 
 // --- ProgressCircuit ---
 const ProgressCircuit = ({ currentStep, completedSteps, onStepClick }) => {
-  const { theme } = useTheme()
+  const { theme } = useTheme();
   const steps = [
     { id: 'stories', label: 'User Stories', available: true },
     { id: 'setup', label: 'Project Setup', available: completedSteps.includes('stories') },
-    { id: 'download', label: 'Download', available: completedSteps.includes('setup') }
-  ]
+    { id: 'download', label: 'Generated Project', available: completedSteps.includes('setup') }
+  ];
 
   return (
     <div className="fixed left-8 bottom-8 hidden lg:block z-40">
-      <div className="relative">
-        <div
-          className={clsx(
-            'absolute left-4 top-4 bottom-4 w-0.5 bg-gradient-to-b',
-            theme.circuitLine
-          )}
-        />
-        <div className="relative flex flex-col gap-[48px]">
-          {steps.map((step) => {
-            const active = currentStep === step.id
-            const completed = completedSteps.includes(step.id)
-            const available = step.available
+      <div className="relative flex flex-col items-start gap-0">
+        {steps.map((step, idx) => {
+          const active = currentStep === step.id;
+          const completed = completedSteps.includes(step.id);
+          const available = step.available;
+          const isLast = idx === steps.length - 1;
 
-            return (
+          return (
+            <div key={step.id} className="relative flex flex-col items-start">
               <div
-                key={step.id}
                 className={clsx(
-                  'relative',
+                  'flex items-center',
                   available ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
                 )}
                 onClick={() => available && onStepClick(step.id)}
@@ -262,11 +256,11 @@ const ProgressCircuit = ({ currentStep, completedSteps, onStepClick }) => {
                         ? 'border-green-400 bg-green-400/20'
                         : available
                           ? clsx(
-                            'border-gray-600',
-                            theme.bgPrimary === 'bg-gray-900'
-                              ? 'bg-gray-800'
-                              : 'bg-gray-200'
-                          )
+                              'border-gray-600',
+                              theme.bgPrimary === 'bg-gray-900'
+                                ? 'bg-gray-800'
+                                : 'bg-gray-200'
+                            )
                           : 'border-gray-700 bg-gray-800'
                   )}
                 >
@@ -279,21 +273,29 @@ const ProgressCircuit = ({ currentStep, completedSteps, onStepClick }) => {
                 </div>
                 <div
                   className={clsx(
-                    'absolute left-12 top-1/2 -translate-y-1/2 text-sm font-medium whitespace-nowrap',
+                    'ml-4 text-sm font-medium whitespace-nowrap',
                     available ? theme.text : theme.textSecondary
                   )}
                 >
                   {step.label}
                 </div>
               </div>
-            )
-          })}
-        </div>
+              {/* Render the line only between steps */}
+              {!isLast && (
+                <div
+                  className={clsx(
+                    'ml-4 w-0.5 h-12 bg-gradient-to-b',
+                    theme.circuitLine
+                  )}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
-  )
-}
-
+  );
+};
 // --- NavLink ---
 const NavLink = ({ active, onClick, children, disabled = false }) => {
   const { theme } = useTheme()
@@ -361,7 +363,7 @@ const Navbar = () => {
             CodeGen
           </span>
         </div>
-        <div className="hidden md:flex items-center space-x-4">
+        <div className="hidden md:flex items-center space-x-4 ">
           <NavLink
             active={isHomePage && !hasStarted}
             onClick={() => {
@@ -697,14 +699,14 @@ const EditorPage = () => {
               <button
                 onClick={saveFile}
                 disabled={saving || !currentFile || unsavedContent[currentFile] === undefined}
-                className="mr-2 px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 h-[40px]"
+                className="mr-2 px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 h-[40px] cursor-pointer"
                 style={{ minHeight: 40 }}
               >
                 {saving ? "Saving…" : "Save"}
               </button>
               <button
                 onClick={download}
-                className="px-3 py-1 bg-green-500 text-white rounded h-[40px]"
+                className="px-3 py-1 bg-green-500 text-white rounded h-[40px] cursor-pointer"
                 style={{ minHeight: 40 }}
               >
                 Download Project
