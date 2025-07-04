@@ -49,9 +49,17 @@ const useTheme = () => useContext(ThemeContext)
 const AppStateContext = createContext()
 const useAppState = () => useContext(AppStateContext)
 
+// --- SnackbarContext ---
+const SnackbarContext = createContext();
+
 // --- Theme definitions ---
 const themes = {
   dark: {
+    snackbar: {
+      info:   { bg: 'bg-blue-900/70',   text: 'text-blue-200' },
+      success:{ bg: 'bg-green-900/70',  text: 'text-green-200' },
+      error:  { bg: 'bg-red-900/70',    text: 'text-red-200' }
+    },
     bgPrimary: 'bg-gray-900',
     bgSecondary: 'bg-gray-800',
     text: 'text-white',
@@ -67,6 +75,11 @@ const themes = {
     circuitLine: 'from-red-500/20 via-purple-500/20 to-blue-500/20'
   },
   light: {
+    snackbar: {
+      info:   { bg: 'bg-blue-100/90',   text: 'text-blue-900' },
+      success:{ bg: 'bg-green-100/90',  text: 'text-green-900' },
+      error:  { bg: 'bg-red-100/90',    text: 'text-red-900' }
+    },
     bgPrimary: 'bg-gray-100',
     bgSecondary: 'bg-gray-200',
     text: 'text-gray-900',
@@ -115,7 +128,83 @@ const ThemeToggle = () => {
     </button>
   )
 }
+export const useSnackbar = () => useContext(SnackbarContext);
 
+const SnackbarProvider = ({ children }) => {
+  const { theme } = useTheme();
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    type: "info",
+  });
+
+  // Auto-close after 3s
+  useEffect(() => {
+    if (snackbar.open) {
+      const timer = setTimeout(
+        () => setSnackbar((s) => ({ ...s, open: false })),
+        3000
+      );
+      return () => clearTimeout(timer);
+    }
+  }, [snackbar.open]);
+
+  const showSnackbar = (message, type = "info") => {
+    setSnackbar({ open: true, message, type });
+  };
+
+  // Use theme-defined colors
+  const snackbarTheme = theme.snackbar[snackbar.type];
+
+  return (
+    <SnackbarContext.Provider value={showSnackbar}>
+      {children}
+      {snackbar.open && (
+        <div
+          className={clsx(
+            "fixed bottom-8 right-8 px-5 py-3 rounded-lg shadow-lg z-[9999] flex items-start min-w-[240px] max-w-[360px] transition-all duration-300",
+            snackbarTheme.bg,
+            snackbarTheme.text
+          )}
+          style={{
+            textAlign: "left",
+            fontSize: "1rem",
+            lineHeight: "1.5",
+          }}
+        >
+          <div className="flex-1 pr-4">{snackbar.message}</div>
+          <button
+            className={clsx(
+              "ml-2 p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition"
+            )}
+            aria-label="Close"
+            onClick={() => setSnackbar((s) => ({ ...s, open: false }))}
+            tabIndex={0}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              className={clsx(
+                theme.bgPrimary === "bg-gray-900"
+                  ? "text-gray-300"
+                  : "text-gray-700"
+              )}
+            >
+              <path
+                d="M6 6l8 8M6 14L14 6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
+    </SnackbarContext.Provider>
+  );
+};
 // --- Hexagon ---
 const Hexagon = ({ position, color, half }) => {
   const { theme } = useTheme()
@@ -335,28 +424,48 @@ const Section = forwardRef(
 )
 
 // --- FileTreeNode ---
-const FileTreeNode = ({ node, onFileClick, indent = 0 }) => {
-  const [open, setOpen] = useState(false)
-  const isDir = node.type === 'directory'
+const FileTreeNode = ({
+  node,
+  onFileClick,
+  indent = 0,
+  unsaved = {},
+  currentFile = null,
+}) => {
+  const [open, setOpen] = useState(false);
+  const isDir = node.type === "directory";
+  const isUnsaved = unsaved[node.path];
+  const isActive = currentFile === node.path;
+
   return (
     <div style={{ paddingLeft: indent }}>
       <div
-        className="flex items-center cursor-pointer hover:bg-gray-300/20 p-1 rounded"
+        className={clsx(
+          "flex items-center cursor-pointer hover:bg-gray-300/20 p-1 rounded",
+          isActive && "bg-blue-100/20"
+        )}
         onClick={() => {
-          if (isDir) setOpen((o) => !o)
-          else onFileClick(node.path)
+          if (isDir) setOpen((o) => !o);
+          else onFileClick(node.path);
         }}
       >
         {isDir ? (
           open ? (
-              <ChevronDown size={16} className="mr-1"/>
-            ) : (
-              <ChevronRight size={16} className="mr-1"/>
-            )
+            <ChevronDown size={16} className="mr-1" />
+          ) : (
+            <ChevronRight size={16} className="mr-1" />
+          )
         ) : (
           <File size={16} className="mr-1" />
         )}
-        <span>{node.name}</span>
+        <span className="flex items-center">
+          {node.name}
+          {isUnsaved && (
+            <span
+              className="ml-2 w-2 h-2 rounded-full bg-red-500 inline-block"
+              title="Unsaved changes"
+            />
+          )}
+        </span>
       </div>
       {isDir &&
         open &&
@@ -366,12 +475,257 @@ const FileTreeNode = ({ node, onFileClick, indent = 0 }) => {
             node={child}
             onFileClick={onFileClick}
             indent={indent + 16}
+            unsaved={unsaved}
+            currentFile={currentFile}
           />
         ))}
     </div>
-  )
-}
+  );
+};
 
+const EditorPage = () => {
+  const { theme } = useTheme();
+  const navigate = useNavigate();
+  const showSnackbar = useSnackbar();
+  const { completedSteps, projectName } = useAppState();
+  const [tree, setTree] = useState([]);
+  const [currentFile, setCurrentFile] = useState(null);
+  const [code, setCode] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Minimal unsaved state
+  const [unsavedContent, setUnsavedContent] = useState({});
+  const unsavedFiles = Object.keys(unsavedContent);
+  const unsavedCount = unsavedFiles.length;
+
+  // Dropdown
+  const [showUnsavedDropdown, setShowUnsavedDropdown] = useState(false);
+  const dropdownRef = useRef();
+
+  // Fetching deduplication
+  const [fetchingFiles, setFetchingFiles] = useState(new Set());
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!showUnsavedDropdown) return;
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowUnsavedDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showUnsavedDropdown]);
+
+  // Redirect if setup not completed
+  useEffect(() => {
+    if (!completedSteps.includes("setup")) {
+      navigate("/");
+    }
+  }, [completedSteps, navigate]);
+
+  useEffect(() => {
+    if (projectName) {
+      getFileTree(decodeURIComponent(projectName))
+        .then((res) => setTree(res.data))
+        .catch(console.error);
+    }
+  }, [projectName]);
+
+  // Open file logic with unsaved and fetch deduplication
+  const openFile = (relPath) => {
+    const cleanPath = relPath.startsWith(projectName)
+      ? relPath.substring(projectName.length + 1)
+      : relPath;
+
+    // If already fetching, do nothing
+    if (fetchingFiles.has(cleanPath)) return;
+
+    // If unsaved content exists, show that instead of fetching
+    if (unsavedContent[cleanPath] !== undefined) {
+      setCurrentFile(cleanPath);
+      setCode(unsavedContent[cleanPath]);
+      return;
+    }
+
+    setFetchingFiles((prev) => new Set(prev).add(cleanPath));
+    getFileContent(decodeURIComponent(projectName), cleanPath)
+      .then((res) => {
+        setCurrentFile(cleanPath);
+        setCode(res.data.content);
+        setUnsavedContent((prev) => {
+          const copy = { ...prev };
+          delete copy[cleanPath];
+          return copy;
+        });
+      })
+      .catch(console.error)
+      .finally(() => {
+        setFetchingFiles((prev) => {
+          const copy = new Set(prev);
+          copy.delete(cleanPath);
+          return copy;
+        });
+      });
+  };
+
+  // Track unsaved changes and content
+  const onEditorChange = (v) => {
+    setCode(v);
+    if (currentFile) {
+      setUnsavedContent((prev) => ({ ...prev, [currentFile]: v }));
+    }
+  };
+
+  // Save file and clear unsaved state
+  const saveFile = () => {
+    if (!currentFile) return;
+    setSaving(true);
+    writeFileContent({
+      project_name: decodeURIComponent(projectName),
+      relative_path: currentFile,
+      content: code,
+    })
+      .then(() => {
+        showSnackbar("Saved!", "success");
+        setUnsavedContent((prev) => {
+          const copy = { ...prev };
+          delete copy[currentFile];
+          return copy;
+        });
+      })
+      .catch((err) => showSnackbar("Save failed: " + err, "error"))
+      .finally(() => setSaving(false));
+  };
+
+  const download = () => {
+    downloadProject({
+      project_name: decodeURIComponent(projectName),
+    })
+      .then((resp) => {
+        const url = window.URL.createObjectURL(new Blob([resp.data]));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${projectName}.zip`;
+        a.click();
+      })
+      .catch(console.error);
+  };
+
+  if (!completedSteps.includes("setup")) return null;
+
+  return (
+    <div className={clsx(theme.bgPrimary, theme.text, "h-screen pt-15")}>
+      <div className="flex h-full">
+        <aside
+          className={clsx("w-64 border-r overflow-y-auto p-2", theme.border)}
+        >
+          <h3 className="font-bold p-3">Files</h3>
+          {tree.map((node) => (
+            <FileTreeNode
+              key={node.path}
+              node={node}
+              onFileClick={openFile}
+              unsaved={unsavedContent}
+              currentFile={currentFile}
+            />
+          ))}
+        </aside>
+        <div className="flex-1 flex flex-col">
+          <div
+            className={clsx(
+              "flex items-center justify-between p-2 border-b",
+              theme.bgSecondary,
+              theme.border
+            )}
+          >
+            <span className="font-medium">
+              {currentFile || "Select a file…"}
+              {currentFile && unsavedContent[currentFile] !== undefined && (
+                <span
+                  className="ml-2 w-2 h-2 rounded-full bg-red-500 inline-block"
+                  title="Unsaved changes"
+                />
+              )}
+            </span>
+            <div className="flex items-center">
+              {/* Unsaved Count and Dropdown as text */}
+              <div className="relative mr-4" ref={dropdownRef}>
+                <span
+                  className={clsx(
+                    "font-semibold text-sm flex items-center cursor-pointer select-none",
+                    unsavedCount > 0
+                      ? "text-red-500"
+                      : "text-gray-400"
+                  )}
+                  style={{ minWidth: 80 }}
+                  onClick={() => unsavedCount > 0 && setShowUnsavedDropdown((v) => !v)}
+                  tabIndex={0}
+                  role="button"
+                  aria-haspopup="listbox"
+                  aria-expanded={showUnsavedDropdown}
+                >
+                  Unsaved
+                  <span className="ml-1 font-bold">
+                    ({unsavedCount})
+                  </span>
+                  <ChevronDown size={16} className="ml-1" />
+                </span>
+                {showUnsavedDropdown && unsavedCount > 0 && (
+                  <div
+                    className={clsx(
+                      "absolute left-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-50"
+                    )}
+                  >
+                    <ul className="max-h-60 overflow-auto py-2">
+                      {unsavedFiles.map((file) => (
+                        <li
+                          key={file}
+                          className="px-4 py-1 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                          onClick={() => {
+                            setShowUnsavedDropdown(false);
+                            openFile(file);
+                          }}
+                        >
+                          {file}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={saveFile}
+                disabled={saving || !currentFile || unsavedContent[currentFile] === undefined}
+                className="mr-2 px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 h-[40px]"
+                style={{ minHeight: 40 }}
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+              <button
+                onClick={download}
+                className="px-3 py-1 bg-green-500 text-white rounded h-[40px]"
+                style={{ minHeight: 40 }}
+              >
+                Download Project
+              </button>
+            </div>
+          </div>
+          <div className="flex-1">
+            <MonacoEditor
+              height="100%"
+              language={currentFile?.split(".").pop() || "javascript"}
+              theme={theme.bgPrimary === "bg-gray-900" ? "vs-dark" : "vs-light"}
+              value={code}
+              onChange={onEditorChange}
+              options={{ automaticLayout: true }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 // --- HomePage ---
 const HomePage = () => {
   const { theme } = useTheme()
@@ -395,6 +749,7 @@ const HomePage = () => {
     setProjectName
   } = useAppState()
 
+  const showSnackbar = useSnackbar();
   const navigate = useNavigate()
   const storyRef = useRef(null)
   const setupRef = useRef(null)
@@ -472,7 +827,7 @@ const HomePage = () => {
       })
       .catch((err) => {
         console.error(err)
-        alert('Generation failed')
+        showSnackbar('Generation failed', "error");
         setGenState('idle')
       })
   }
@@ -782,118 +1137,6 @@ const HomePage = () => {
   )
 }
 
-// --- EditorPage ---
-const EditorPage = () => {
-  const { theme } = useTheme()
-  const navigate = useNavigate()
-  const { completedSteps, projectName } = useAppState()
-  const [tree, setTree] = useState([])
-  const [currentFile, setCurrentFile] = useState(null)
-  const [code, setCode] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  // Redirect if setup not completed
-  useEffect(() => {
-    if (!completedSteps.includes('setup')) {
-      navigate('/')
-    }
-  }, [completedSteps, navigate])
-
-  useEffect(() => {
-    if (projectName) {
-      getFileTree(decodeURIComponent(projectName))
-        .then((res) => setTree(res.data))
-        .catch(console.error)
-    }
-  }, [projectName])
-
-  const openFile = (relPath) => {
-  const cleanPath = relPath.startsWith(projectName) 
-    ? relPath.substring(projectName.length + 1)
-    : relPath
-  
-  getFileContent(decodeURIComponent(projectName), cleanPath)
-    .then((res) => {
-      setCurrentFile(cleanPath)
-      setCode(res.data.content)
-    })
-    .catch(console.error)
-}
-
-  const saveFile = () => {
-    if (!currentFile) return
-    setSaving(true)
-    writeFileContent({
-      project_name: decodeURIComponent(projectName),
-      relative_path: currentFile,
-      content: code
-    })
-      .then(() => alert('Saved!'))
-      .catch((err) => alert('Save failed: ' + err))
-      .finally(() => setSaving(false))
-  }
-
-  const download = () => {
-    downloadProject({
-      project_name: decodeURIComponent(projectName)
-    })
-      .then((resp) => {
-        const url = window.URL.createObjectURL(new Blob([resp.data]))
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${projectName}.zip`
-        a.click()
-      })
-      .catch(console.error)
-  }
-
-  if (!completedSteps.includes('setup')) return null
-
-  return (
-    <div className={clsx(theme.bgPrimary, theme.text, 'h-screen pt-16')}>
-      <div className="flex h-full">
-        <aside className={clsx('w-64 border-r overflow-y-auto p-2', theme.border)}>
-          <h3 className="font-bold mb-2">Files</h3>
-          {tree.map((node) => (
-            <FileTreeNode key={node.path} node={node} onFileClick={openFile} />
-          ))}
-        </aside>
-        <div className="flex-1 flex flex-col">
-          <div className={clsx('flex items-center justify-between p-2 border-b', theme.bgSecondary, theme.border)}>
-            <span className="font-medium">{currentFile || 'Select a file…'}</span>
-            <div>
-              <button
-                onClick={saveFile}
-                disabled={saving || !currentFile}
-                className="mr-2 px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 h-[40px]"
-                style={{ minHeight: 40 }}
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                onClick={download}
-                className="px-3 py-1 bg-green-500 text-white rounded h-[40px]"
-                style={{ minHeight: 40 }}
-              >
-                Download Project
-              </button>
-            </div>
-          </div>
-          <div className="flex-1">
-            <MonacoEditor
-              height="100%"
-              language={currentFile?.split('.').pop() || 'javascript'}
-              theme={theme.bgPrimary === 'bg-gray-900' ? 'vs-dark' : 'vs-light'}
-              value={code}
-              onChange={(v) => setCode(v)}
-              options={{ automaticLayout: true }}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // --- Local Storage helpers ---
 const APP_STATE_KEY = 'codegen_app_state'
@@ -1025,16 +1268,18 @@ export default function App() {
   return (
     <ThemeContext.Provider value={{ isDarkMode, theme, toggleTheme }}>
       <AppStateContext.Provider value={appState}>
-        <Router>
-          <div className={clsx(theme.bgPrimary, theme.text, 'font-sans min-h-screen')}>
-            <Navbar />
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/editor" element={<EditorPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </div>
-        </Router>
+        <SnackbarProvider>
+          <Router>
+            <div className={clsx(theme.bgPrimary, theme.text, 'font-sans min-h-screen')}>
+              <Navbar />
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/editor" element={<EditorPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </div>
+          </Router>
+        </SnackbarProvider>
       </AppStateContext.Provider>
     </ThemeContext.Provider>
   )
