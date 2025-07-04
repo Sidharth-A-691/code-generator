@@ -153,20 +153,25 @@ class CodeGenerationService:
         result = self._execute_plan(structured_response['plan'], output_directory)
         return result
 
-    def list_directory_recursive(self, path: str) -> List[Dict[str, Any]]:
+    def list_directory_recursive(self, path: str, root: str = None) -> List[Dict[str, Any]]:
         """
         Recursively lists files and directories for a given path.
         Returns a list suitable for building a file tree in the UI.
+        All 'path' fields are relative to the project root.
         """
+        if root is None:
+            root = path  # Set the root on the first call
+
         file_tree = []
         for entry in os.scandir(path):
+            rel_path = os.path.relpath(entry.path, start=root)
             node = {
                 "name": entry.name,
-                "path": os.path.relpath(entry.path, start=os.path.dirname(path)),
+                "path": rel_path.replace(os.sep, "/"),  # Use forward slashes for consistency
                 "type": "directory" if entry.is_dir() else "file"
             }
             if entry.is_dir():
-                node["children"] = self.list_directory_recursive(entry.path)
+                node["children"] = self.list_directory_recursive(entry.path, root)
             file_tree.append(node)
         return file_tree
 

@@ -26,7 +26,8 @@ import {
   BrainCircuit,
   Sun,
   Moon,
-  Folder,
+  ChevronDown,
+  ChevronRight,
   File
 } from 'lucide-react'
 import clsx from 'clsx'
@@ -347,7 +348,11 @@ const FileTreeNode = ({ node, onFileClick, indent = 0 }) => {
         }}
       >
         {isDir ? (
-          <Folder size={16} className="mr-1" />
+          open ? (
+              <ChevronDown size={16} className="mr-1"/>
+            ) : (
+              <ChevronRight size={16} className="mr-1"/>
+            )
         ) : (
           <File size={16} className="mr-1" />
         )}
@@ -803,13 +808,17 @@ const EditorPage = () => {
   }, [projectName])
 
   const openFile = (relPath) => {
-    getFileContent( decodeURIComponent(projectName), relPath)
-      .then((res) => {
-        setCurrentFile(relPath)
-        setCode(res.data.content)
-      })
-      .catch(console.error)
-  }
+  const cleanPath = relPath.startsWith(projectName) 
+    ? relPath.substring(projectName.length + 1)
+    : relPath
+  
+  getFileContent(decodeURIComponent(projectName), cleanPath)
+    .then((res) => {
+      setCurrentFile(cleanPath)
+      setCode(res.data.content)
+    })
+    .catch(console.error)
+}
 
   const saveFile = () => {
     if (!currentFile) return
