@@ -728,9 +728,8 @@ const EditorPage = () => {
     </div>
   );
 };
-// --- HomePage ---
 const HomePage = () => {
-  const { theme } = useTheme()
+  const { theme } = useTheme();
   const {
     hasStarted,
     setHasStarted,
@@ -748,101 +747,159 @@ const HomePage = () => {
     setCurrentStep,
     design,
     setDesign,
-    setProjectName
-  } = useAppState()
+    setProjectName,
+    projectName,
+  } = useAppState();
 
   const showSnackbar = useSnackbar();
-  const navigate = useNavigate()
-  const storyRef = useRef(null)
-  const setupRef = useRef(null)
-  const resultsRef = useRef(null)
+  const navigate = useNavigate();
+  const storyRef = useRef(null);
+  const setupRef = useRef(null);
+  const resultsRef = useRef(null);
+
+  // --- NEW: Pending state for branch/tech ---
+  const [pendingBranch, setPendingBranch] = useState(null);
+  const [pendingTech, setPendingTech] = useState(null);
+
+  // Sync pending state with main state on mount or when branch/tech changes (for hydration)
+  useEffect(() => {
+    setPendingBranch(branch);
+    setPendingTech(tech);
+  }, [branch, tech]);
 
   const handleGetStarted = () => {
-    setHasStarted(true)
-    setCurrentStep('stories')
+    setHasStarted(true);
+    setCurrentStep('stories');
     setTimeout(() => {
-      storyRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, 100)
-  }
+      storyRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
 
   const handleStepClick = (stepId) => {
-    setCurrentStep(stepId)
-    const refs = { stories: storyRef, setup: setupRef, download: resultsRef }
-    const targetRef = refs[stepId]
+    setCurrentStep(stepId);
+    const refs = { stories: storyRef, setup: setupRef, download: resultsRef };
+    const targetRef = refs[stepId];
     if (targetRef?.current) {
-      targetRef.current.scrollIntoView({ behavior: 'smooth' })
+      targetRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }
+  };
 
+  // --- CHANGED: On Next, clear all setup state and localStorage ---
   const handleStoriesNext = () => {
-    if (!userStories.trim()) return
-    setCompletedSteps((prev) => [...new Set([...prev, 'stories'])])
-    setCurrentStep('setup')
-    setTimeout(() => {
-      setupRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, 100)
-  }
+    if (!userStories.trim()) return;
 
+    // Clear all setup-related state
+    setBranch(null);
+    setTech(null);
+    setGenState('idle');
+    setDesign(null);
+    setProjectName('');
+    setPendingBranch(null);
+    setPendingTech(null);
+
+    // Also clear from localStorage
+    saveAppState({
+      hasStarted,
+      userStories,
+      branch: null,
+      tech: null,
+      genState: 'idle',
+      completedSteps: [...new Set([...completedSteps, 'stories'])],
+      currentStep: 'setup',
+      design: null,
+      projectName: '',
+    });
+
+    setCompletedSteps((prev) => [...new Set([...prev, 'stories'])]);
+    setCurrentStep('setup');
+    setTimeout(() => {
+      setupRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  // --- CHANGED: Only update pending state on selection ---
   const handleBranchSelect = (b) => {
-    setBranch(b)
-    setTech(null)
-    setGenState('idle')
-  }
+    setPendingBranch(b);
+    setPendingTech(null);
+  };
 
   const handleTechSelect = (t) => {
-    setTech(t)
-    setGenState('idle')
-  }
+    setPendingTech(t);
+  };
 
+  // --- CHANGED: On Generate, clear design, then update branch/tech ---
   const handleGenerate = () => {
-    setGenState('generating')
-    const projectName = branch === 'backend' ? 'backend' : 'frontend'
-    setProjectName(projectName)
+    setGenState('generating');
+    setDesign(null); // Clear design in state
+
+    // Clear design in localStorage, and update branch/tech/projectName
+    const newBranch = pendingBranch;
+    const newTech = pendingTech;
+    const newProjectName = newBranch === 'backend' ? 'backend' : 'frontend';
+
+    saveAppState({
+      hasStarted,
+      userStories,
+      branch: newBranch,
+      tech: newTech,
+      genState: 'generating',
+      completedSteps,
+      currentStep,
+      design: null,
+      projectName: newProjectName,
+    });
+
+    setBranch(newBranch);
+    setTech(newTech);
+    setProjectName(newProjectName);
+
     generateCode({
       user_stories: userStories,
-      project_type: branch,
-      language: tech,
-      project_name: projectName
+      project_type: newBranch,
+      language: newTech,
+      project_name: newProjectName,
     })
       .then((res) => {
-        setDesign(res.data)
+        setDesign(res.data);
         setCompletedSteps((prev) => {
-          const newSteps = [...new Set([...prev, 'setup'])]
+          const newSteps = [...new Set([...prev, 'setup'])];
           saveAppState({
             hasStarted: true,
             userStories,
-            branch,
-            tech,
+            branch: newBranch,
+            tech: newTech,
             genState: 'ready',
             completedSteps: newSteps,
             currentStep: 'download',
             design: res.data,
-            projectName
-          })
-          return newSteps
-        })
-        setGenState('ready')
-        setCurrentStep('download')
+            projectName: newProjectName,
+          });
+          return newSteps;
+        });
+        setGenState('ready');
+        setCurrentStep('download');
         setTimeout(() => {
-          resultsRef.current?.scrollIntoView({ behavior: 'smooth' })
-        }, 100)
+          resultsRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
       })
       .catch((err) => {
-        console.error(err)
-        showSnackbar('Generation failed', "error");
-        setGenState('idle')
-      })
-  }
+        console.error(err);
+        showSnackbar('Generation failed', 'error');
+        setGenState('idle');
+      });
+  };
+
   const goToEditor = () => {
-    navigate('/editor')
-  }
+    navigate('/editor');
+  };
 
   // Only show stepper if not on home section and hasStarted
   const showStepper =
     hasStarted &&
     currentStep !== 'home' &&
-    ['stories', 'setup', 'download'].includes(currentStep)
+    ['stories', 'setup', 'download'].includes(currentStep);
 
+  // --- UI: Use pendingBranch/pendingTech for selection, but keep UI unchanged ---
   return (
     <div className={clsx(theme.bgPrimary, 'min-h-screen')}>
       {showStepper && (
@@ -889,7 +946,6 @@ const HomePage = () => {
             bottomHexagon={{ position: '-bottom-16 left-1/2', color: 'hexagonSecondary' }}
           >
             <div className="flex flex-col md:flex-row w-full max-w-4xl h-full">
-              {/* Step Heading: left, vertically centered */}
               <div className="md:w-1/3 flex flex-col justify-center items-center md:items-start">
                 <div className="w-full flex flex-col items-center md:items-start">
                   <h2 className="text-5xl font-bold mb-2 text-left">
@@ -934,7 +990,6 @@ const HomePage = () => {
             bottomHexagon={{ position: '-bottom-16 right-[25%]', color: 'hexagonPrimary' }}
           >
             <div className="flex flex-col md:flex-row w-full max-w-4xl h-full">
-              {/* Step Heading: left, vertically centered */}
               <div className="md:w-1/3 flex flex-col justify-center items-center md:items-start">
                 <div className="w-full flex flex-col items-center md:items-start">
                   <h2 className="text-5xl font-bold mb-2 text-left">
@@ -944,7 +999,7 @@ const HomePage = () => {
                 </div>
               </div>
               <div className="md:w-2/3 space-y-8">
-                {!branch ? (
+                {!pendingBranch ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {['frontend', 'backend'].map((b) => (
                       <div
@@ -992,34 +1047,34 @@ const HomePage = () => {
                   <div className="space-y-6">
                     <div className="flex flex-wrap items-center gap-2">
                       {['frontend', 'backend'].map((b) => {
-                        const color = b === 'frontend' ? 'blue' : 'green'
+                        const color = b === 'frontend' ? 'blue' : 'green';
                         return (
                           <div
                             key={b}
                             onClick={() => handleBranchSelect(b)}
                             className={clsx(
                               'px-4 py-2 rounded-full border-2 cursor-pointer transition-all duration-300 transform hover:scale-105',
-                              branch === b
+                              pendingBranch === b
                                 ? `border-${color}-400 bg-${color}-400/10 text-${color}-400 scale-105`
                                 : clsx(theme.border, theme.textSecondary, theme.borderHover)
                             )}
                           >
                             {b.charAt(0).toUpperCase() + b.slice(1)}
                           </div>
-                        )
+                        );
                       })}
                     </div>
 
-                    {branch && (
+                    {pendingBranch && (
                       <div className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          {techOptions[branch].map((t) => (
+                          {techOptions[pendingBranch].map((t) => (
                             <div
                               key={t.id}
                               onClick={() => handleTechSelect(t.id)}
                               className={clsx(
                                 'group relative p-6 border-2 rounded-xl cursor-pointer transition-all duration-500 transform hover:scale-105',
-                                tech === t.id
+                                pendingTech === t.id
                                   ? 'border-purple-400 bg-purple-400/10 scale-105'
                                   : 'border-white/20 hover:border-purple-400 hover:bg-purple-400/5'
                               )}
@@ -1029,7 +1084,7 @@ const HomePage = () => {
                                 <div
                                   className={clsx(
                                     'w-12 h-12 rounded-full flex items-center justify-center transition-colors duration-300',
-                                    tech === t.id
+                                    pendingTech === t.id
                                       ? 'bg-purple-500/30'
                                       : 'bg-purple-500/20 group-hover:bg-purple-500/30'
                                   )}
@@ -1041,7 +1096,7 @@ const HomePage = () => {
                               <ArrowRight
                                 className={clsx(
                                   'absolute bottom-3 right-3 text-purple-400 transition-opacity duration-300',
-                                  tech === t.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                  pendingTech === t.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                                 )}
                                 size={20}
                               />
@@ -1049,7 +1104,7 @@ const HomePage = () => {
                           ))}
                         </div>
 
-                        {tech && (
+                        {pendingTech && (
                           <div className="flex justify-end">
                             <button
                               onClick={handleGenerate}
@@ -1094,7 +1149,6 @@ const HomePage = () => {
             topHexagon={{ position: '-top-16 left-[16.666%]', color: 'hexagonSecondary' }}
           >
             <div className="flex flex-col md:flex-row w-full max-w-4xl h-full">
-              {/* Step Heading: left, vertically centered */}
               <div className="md:w-1/3 flex flex-col justify-center items-center md:items-start">
                 <div className="w-full flex flex-col items-center md:items-start">
                   <h2 className="text-5xl font-bold mb-2 text-left">
@@ -1107,7 +1161,6 @@ const HomePage = () => {
                 {design && (
                   <>
                     <div className={clsx('p-6 rounded-2xl border max-h-[70vh] overflow-auto', theme.card, theme.border)}>
-                      {/* <p className="text-lg mb-4 font-medium">{design.message}</p> */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                           <h4 className="font-semibold mb-2">High-level Design</h4>
@@ -1136,8 +1189,8 @@ const HomePage = () => {
         )}
       </main>
     </div>
-  )
-}
+  );
+};
 
 
 // --- Local Storage helpers ---
