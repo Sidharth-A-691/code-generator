@@ -8,6 +8,14 @@ import React, {
   forwardRef
 } from 'react'
 import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation
+} from 'react-router-dom'
+import {
   ArrowRight,
   Code,
   Server,
@@ -15,17 +23,30 @@ import {
   CheckCircle,
   Loader,
   Zap,
-  Download,
   BrainCircuit,
   Sun,
-  Moon
+  Moon,
+  Folder,
+  File
 } from 'lucide-react'
 import clsx from 'clsx'
-import './index.css' // your scrollbar CSS
+import MonacoEditor from '@monaco-editor/react'
+import {
+  generateCode,
+  getFileTree,
+  getFileContent,
+  writeFileContent,
+  downloadProject
+} from './api/apiClient'
+import './index.css'
 
 // --- ThemeContext & Hook ---
 const ThemeContext = createContext()
-export const useTheme = () => useContext(ThemeContext)
+const useTheme = () => useContext(ThemeContext)
+
+// --- AppStateContext ---
+const AppStateContext = createContext()
+const useAppState = () => useContext(AppStateContext)
 
 // --- Theme definitions ---
 const themes = {
@@ -34,11 +55,13 @@ const themes = {
     bgSecondary: 'bg-gray-800',
     text: 'text-white',
     textSecondary: 'text-gray-400',
+    textTertiary: 'text-gray-300',
     border: 'border-white/10',
     borderHover: 'hover:border-white/40',
     hexagonPrimary: 'bg-gray-800',
     hexagonSecondary: 'bg-gray-900',
     navbar: 'bg-gray-900/90',
+    card: 'bg-gray-900',
     input: 'bg-gray-700 border-gray-600',
     circuitLine: 'from-red-500/20 via-purple-500/20 to-blue-500/20'
   },
@@ -47,11 +70,13 @@ const themes = {
     bgSecondary: 'bg-gray-200',
     text: 'text-gray-900',
     textSecondary: 'text-gray-600',
+    textTertiary: 'text-gray-700',
     border: 'border-gray-200',
     borderHover: 'hover:border-gray-400',
     hexagonPrimary: 'bg-gray-200',
     hexagonSecondary: 'bg-gray-100',
     navbar: 'bg-gray-200/90',
+    card: 'bg-gray-200',
     input: 'bg-white border-gray-300',
     circuitLine: 'from-red-300/40 via-purple-300/40 to-blue-300/40'
   }
@@ -60,64 +85,59 @@ const themes = {
 // --- Tech options ---
 const techOptions = {
   frontend: [
-    { id: 'react', name: 'React + Vite', icon: <Code size={20}/> },
-    { id: 'vue',   name: 'Vue + Vite',   icon: <Code size={20}/> },
-    { id: 'angular', name: 'Angular',     icon: <Code size={20}/> }
+    { id: 'react', name: 'React + Vite', icon: <Code size={20} /> },
+    { id: 'vue', name: 'Vue + Vite', icon: <Code size={20} /> },
+    { id: 'angular', name: 'Angular', icon: <Code size={20} /> }
   ],
   backend: [
-    { id: 'springboot', name: 'Java (Spring Boot)', icon: <Server size={20}/> },
-    { id: 'fastapi',    name: 'Python (FastAPI)',  icon: <Server size={20}/> },
-    { id: 'nodejs',     name: 'Node.js (Express)', icon: <Server size={20}/> }
+    { id: 'springboot', name: 'Java (Spring Boot)', icon: <Server size={20} /> },
+    { id: 'fastapi', name: 'Python (FastAPI)', icon: <Server size={20} /> },
+    { id: 'nodejs', name: 'Node.js (Express)', icon: <Server size={20} /> }
   ]
 }
 
-// --- Mock projects ---
-const mockProjects = {
-  'react-frontend':    { files:['App.jsx','Dashboard.jsx','LoginForm.jsx','api.js'],    features:['Auth','Dashboard UI','Responsive'] },
-  'vue-frontend':      { files:['App.vue','Dashboard.vue','LoginForm.vue','router.js'], features:['Vue Router','Pinia','UI Library'] },
-  'springboot-backend':{ files:['App.java','UserController.java','UserService.java','SecurityConfig.java'], features:['JWT Auth','JPA','REST API'] },
-  'fastapi-backend':   { files:['main.py','user.py','auth.py','db.py'],                 features:['Async','Pydantic','OAuth2'] }
-}
-
-// --- Theme Toggle ---
+// --- ThemeToggle ---
 const ThemeToggle = () => {
   const { isDarkMode, toggleTheme } = useTheme()
   return (
     <button
       onClick={toggleTheme}
       className={clsx(
-        'p-2 rounded-lg transition hover:scale-110',
+        'p-2 rounded-lg transition-all duration-300 hover:scale-110',
         isDarkMode
           ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700'
           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
       )}
       aria-label="Toggle theme"
     >
-      {isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}
+      {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
     </button>
   )
 }
 
-// --- Hexagon component ---
+// --- Hexagon ---
 const Hexagon = ({ position, color, half }) => {
   const { theme } = useTheme()
-  const clip = half === 'top'
-    ? 'polygon(25% 0%,75% 0%,100% 50%,0% 50%)'
-    : 'polygon(0% 50%,100% 50%,75% 100%,25% 100%)'
+  const clipPath =
+    half === 'top'
+      ? 'polygon(25% 0%,75% 0%,100% 50%,0% 50%)'
+      : 'polygon(0% 50%,100% 50%,75% 100%,25% 100%)'
   return (
     <div
       className={clsx('absolute w-64 h-30', theme[color], position)}
-      style={{ clipPath: clip }}
+      style={{ clipPath }}
     />
   )
 }
 
-// --- Progress Circuit ---
-const ProgressCircuit = ({ scrollTo, currentStep, completed }) => {
+// --- ProgressCircuit ---
+const ProgressCircuit = ({ currentStep, completedSteps, onStepClick }) => {
   const { theme } = useTheme()
-  const steps = ['stories','setup','download']
-  const labels = { stories:'User Stories', setup:'Project Setup', download:'Download' }
-  const mapTo = { stories:'stories', setup:'branches', download:'results' }
+  const steps = [
+    { id: 'stories', label: 'User Stories', available: true },
+    { id: 'setup', label: 'Project Setup', available: completedSteps.includes('stories') },
+    { id: 'download', label: 'Download', available: completedSteps.includes('setup') }
+  ]
 
   return (
     <div className="fixed left-8 bottom-8 hidden lg:block z-40">
@@ -129,40 +149,51 @@ const ProgressCircuit = ({ scrollTo, currentStep, completed }) => {
           )}
         />
         <div className="relative flex flex-col gap-[48px]">
-          {steps.map(s => {
-            const active = currentStep===s
-            const done   = completed.includes(s)
+          {steps.map((step) => {
+            const active = currentStep === step.id
+            const completed = completedSteps.includes(step.id)
+            const available = step.available
+
             return (
               <div
-                key={s}
-                className="relative cursor-pointer"
-                onClick={()=>scrollTo(mapTo[s])}
+                key={step.id}
+                className={clsx(
+                  'relative',
+                  available ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+                )}
+                onClick={() => available && onStepClick(step.id)}
               >
                 <div
                   className={clsx(
                     'w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all',
                     active
                       ? 'border-blue-400 bg-blue-400/20 shadow-lg shadow-blue-400/50'
-                      : done
+                      : completed
                         ? 'border-green-400 bg-green-400/20'
-                        : clsx(
+                        : available
+                          ? clsx(
                             'border-gray-600',
-                            theme.bgPrimary==='bg-gray-900'
+                            theme.bgPrimary === 'bg-gray-900'
                               ? 'bg-gray-800'
                               : 'bg-gray-200'
                           )
+                          : 'border-gray-700 bg-gray-800'
                   )}
                 >
-                  {done   && <CheckCircle size={16} className="text-green-400"/>}
-                  {active && !done && <Zap size={16} className="text-blue-400 animate-pulse"/>}
+                  {completed && (
+                    <CheckCircle size={16} className="text-green-400" />
+                  )}
+                  {active && !completed && (
+                    <Zap size={16} className="text-blue-400 animate-pulse" />
+                  )}
                 </div>
                 <div
                   className={clsx(
-                    'absolute left-12 top-1/2 -translate-y-1/2 text-sm font-medium',
-                    theme.text
+                    'absolute left-12 top-1/2 -translate-y-1/2 text-sm font-medium whitespace-nowrap',
+                    available ? theme.text : theme.textSecondary
                   )}
                 >
-                  {labels[s]}
+                  {step.label}
                 </div>
               </div>
             )
@@ -174,16 +205,19 @@ const ProgressCircuit = ({ scrollTo, currentStep, completed }) => {
 }
 
 // --- NavLink ---
-const NavLink = ({ to, active, scrollTo, children }) => {
+const NavLink = ({ active, onClick, children, disabled = false }) => {
   const { theme } = useTheme()
   return (
     <button
-      onClick={()=>scrollTo(to)}
+      onClick={onClick}
+      disabled={disabled}
       className={clsx(
         'px-4 py-2 text-sm font-medium transition-colors',
-        active
-          ? theme.text
-          : clsx(theme.textSecondary, `hover:${theme.text}`)
+        disabled
+          ? 'opacity-50 cursor-not-allowed'
+          : active
+            ? theme.text
+            : clsx(theme.textSecondary, `hover:${theme.text}`)
       )}
     >
       {children}
@@ -191,253 +225,394 @@ const NavLink = ({ to, active, scrollTo, children }) => {
   )
 }
 
-// --- Section wrapper ---
-const Section = forwardRef(({ id, className, children, topHexagon, bottomHexagon }, ref) => {
+// --- Navbar ---
+const Navbar = () => {
   const { theme } = useTheme()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { completedSteps, hasStarted, setHasStarted, setCurrentStep } = useAppState()
+
+  const scrollToSection = (sectionId) => {
+    const element = document.getElementById(sectionId)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
+  const isHomePage = location.pathname === '/'
+
+  // "Create" tab logic: always clickable, acts like Get Started if not started
+  const handleCreateClick = () => {
+    if (!hasStarted) {
+      setHasStarted(true)
+      setCurrentStep('stories')
+      setTimeout(() => scrollToSection('stories'), 100)
+    } else {
+      scrollToSection('stories')
+    }
+    if (!isHomePage) navigate('/')
+  }
+
   return (
-    <section
-      ref={ref}
-      id={id}
+    <header
       className={clsx(
-        'relative overflow-hidden min-h-screen w-full flex flex-col items-center justify-center p-8 snap-start',
-        className
+        'fixed top-0 left-0 right-0 backdrop-blur-sm z-50 border-b',
+        theme.navbar,
+        theme.border
       )}
     >
-      {topHexagon && (
-        <Hexagon
-          position={topHexagon.position}
-          color={topHexagon.color}
-          half="bottom"
-        />
-      )}
-      {bottomHexagon && (
-        <Hexagon
-          position={bottomHexagon.position}
-          color={bottomHexagon.color}
-          half="top"
-        />
-      )}
-      {children}
-    </section>
+      <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
+        <div
+          className="flex items-center space-x-2 cursor-pointer"
+          onClick={() => navigate('/')}
+        >
+          <Bot size={28} className="text-red-500" />
+          <span className={clsx('text-2xl font-bold', theme.text)}>
+            CodeGen
+          </span>
+        </div>
+        <div className="hidden md:flex items-center space-x-4">
+          <NavLink
+            active={isHomePage && !hasStarted}
+            onClick={() => {
+              if (!isHomePage) navigate('/')
+              setTimeout(() => scrollToSection('home'), 100)
+            }}
+          >
+            Home
+          </NavLink>
+          <NavLink
+            active={isHomePage && hasStarted}
+            onClick={handleCreateClick}
+          >
+            Create
+          </NavLink>
+          <NavLink
+            onClick={() => navigate('/editor')}
+            disabled={!completedSteps.includes('setup')}
+            active={location.pathname === '/editor'}
+          >
+            Editor
+          </NavLink>
+        </div>
+        <ThemeToggle />
+      </nav>
+    </header>
   )
-})
+}
 
-// --- Main App ---
-export default function App() {
-  // Theme state
-  const [isDarkMode, setIsDarkMode] = useState(true)
-  const theme = useMemo(
-    () => (isDarkMode ? themes.dark : themes.light),
-    [isDarkMode]
-  )
-  useEffect(() => {
-    document.documentElement.setAttribute(
-      'data-theme',
-      isDarkMode ? 'dark' : 'light'
-    )
-  }, [isDarkMode])
-  const toggleTheme = () => setIsDarkMode(d=>!d)
-
-  // Flow state
-  const [activeSection, setActiveSection] = useState('home')
-  const refs = {
-    home:    useRef(null),
-    stories: useRef(null),
-    branches:useRef(null),
-    results: useRef(null)
-  }
-  const [userStories, setUserStories] = useState(
-    'As a user, I want to sign up, log in, and see a dashboard.'
-  )
-  const [branch, setBranch]     = useState(null)
-  const [tech, setTech]         = useState(null)
-  const [genState, setGenState] = useState('idle')
-  const [project, setProject]   = useState(null)
-  const [completed, setCompleted] = useState([])
-
-  // Scroll helper
-  const scrollTo = id =>
-    refs[id]?.current?.scrollIntoView({ behavior: 'smooth' })
-
-  // Intersection observer
-  useEffect(()=>{
-    const obs = new IntersectionObserver(
-      es=> es.forEach(e=> e.isIntersecting && setActiveSection(e.target.id)),
-      { threshold:0.6 }
-    )
-    Object.values(refs).forEach(r=> r.current && obs.observe(r.current))
-    return ()=> Object.values(refs).forEach(r=> r.current && obs.unobserve(r.current))
-  },[])
-
-  // Current step
-  const currentStep = (
-    activeSection==='stories' ? 'stories'
-    : activeSection==='branches'? 'setup'
-    : activeSection==='results' ? 'download'
-    : null
-  )
-
-  // Handlers
-  const handleStoriesNext = () => {
-    if(!userStories.trim()) return
-    setCompleted(p=>[...new Set([...p,'stories'])])
-    scrollTo('branches')
-  }
-  const handleBranchSelect = b => {
-    setBranch(b); setTech(null); setGenState('idle')
-  }
-  const handleTechSelect = t => {
-    setTech(t); setGenState('idle')
-  }
-  const handleGenerate = () => {
-    setGenState('generating')
-    setTimeout(()=>{
-      const key = `${tech}-${branch}`
-      setProject(mockProjects[key]||mockProjects['react-frontend'])
-      setGenState('ready')
-      setCompleted(p=>[...new Set([...p,'setup'])])
-      scrollTo('results')
-    },2000)
-  }
-  const handleDownload = () => {
-    const name = `${tech}-${branch}-project.zip`
-    const blob = new Blob(['// code'], { type:'application/zip' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href=url; a.download=name; a.click()
-    URL.revokeObjectURL(url)
-    setCompleted(p=>[...new Set([...p,'download'])])
-  }
-
-  return (
-    <ThemeContext.Provider value={{ isDarkMode, theme, toggleTheme }}>
-      <div className={clsx(theme.bgPrimary, theme.text, 'font-sans overflow-x-hidden')}>
-        {currentStep && (
-          <ProgressCircuit
-            scrollTo={scrollTo}
-            currentStep={currentStep}
-            completed={completed}
+// --- Section ---
+const Section = forwardRef(
+  ({ id, className, children, topHexagon, bottomHexagon }, ref) => {
+    return (
+      <section
+        ref={ref}
+        id={id}
+        className={clsx(
+          'relative overflow-hidden min-h-screen w-full flex flex-col items-center justify-center p-8 snap-start',
+          className
+        )}
+      >
+        {topHexagon && (
+          <Hexagon
+            position={topHexagon.position}
+            color={topHexagon.color}
+            half="bottom"
           />
         )}
-        <header className={clsx(
-          'fixed top-0 left-0 right-0 backdrop-blur-sm z-50 border-b',
-          theme.navbar,
-          theme.border
-        )}>
-          <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
-            <div className="flex items-center space-x-2">
-              <Bot size={28} className="text-red-500"/>
-              <span className={clsx('text-2xl font-bold', theme.text)}>CodeGen</span>
-            </div>
-            <div className="hidden md:flex items-center space-x-4">
-              <NavLink to="home"    active={activeSection==='home'}    scrollTo={scrollTo}>Home</NavLink>
-              <NavLink to="stories" active={activeSection==='stories'} scrollTo={scrollTo}>Create</NavLink>
-              <NavLink to="results" active={activeSection==='results'} scrollTo={scrollTo}>Projects</NavLink>
-            </div>
-            <ThemeToggle />
-          </nav>
-        </header>
-        <main className="h-screen overflow-y-scroll snap-y snap-mandatory">
-          {/* Home */}
+        {bottomHexagon && (
+          <Hexagon
+            position={bottomHexagon.position}
+            color={bottomHexagon.color}
+            half="top"
+          />
+        )}
+        {children}
+      </section>
+    )
+  }
+)
+
+// --- FileTreeNode ---
+const FileTreeNode = ({ node, onFileClick, indent = 0 }) => {
+  const [open, setOpen] = useState(false)
+  const isDir = node.type === 'directory'
+  return (
+    <div style={{ paddingLeft: indent }}>
+      <div
+        className="flex items-center cursor-pointer hover:bg-gray-300/20 p-1 rounded"
+        onClick={() => {
+          if (isDir) setOpen((o) => !o)
+          else onFileClick(node.path)
+        }}
+      >
+        {isDir ? (
+          <Folder size={16} className="mr-1" />
+        ) : (
+          <File size={16} className="mr-1" />
+        )}
+        <span>{node.name}</span>
+      </div>
+      {isDir &&
+        open &&
+        node.children?.map((child) => (
+          <FileTreeNode
+            key={child.path}
+            node={child}
+            onFileClick={onFileClick}
+            indent={indent + 16}
+          />
+        ))}
+    </div>
+  )
+}
+
+// --- HomePage ---
+const HomePage = () => {
+  const { theme } = useTheme()
+  const {
+    hasStarted,
+    setHasStarted,
+    userStories,
+    setUserStories,
+    branch,
+    setBranch,
+    tech,
+    setTech,
+    genState,
+    setGenState,
+    completedSteps,
+    setCompletedSteps,
+    currentStep,
+    setCurrentStep,
+    design,
+    setDesign,
+    outputDir,
+    setProjectName
+  } = useAppState()
+
+  const navigate = useNavigate()
+  const storyRef = useRef(null)
+  const setupRef = useRef(null)
+  const resultsRef = useRef(null)
+
+  const handleGetStarted = () => {
+    setHasStarted(true)
+    setCurrentStep('stories')
+    setTimeout(() => {
+      storyRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 100)
+  }
+
+  const handleStepClick = (stepId) => {
+    setCurrentStep(stepId)
+    const refs = { stories: storyRef, setup: setupRef, download: resultsRef }
+    const targetRef = refs[stepId]
+    if (targetRef?.current) {
+      targetRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
+  const handleStoriesNext = () => {
+    if (!userStories.trim()) return
+    setCompletedSteps((prev) => [...new Set([...prev, 'stories'])])
+    setCurrentStep('setup')
+    setTimeout(() => {
+      setupRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 100)
+  }
+
+  const handleBranchSelect = (b) => {
+    setBranch(b)
+    setTech(null)
+    setGenState('idle')
+  }
+
+  const handleTechSelect = (t) => {
+    setTech(t)
+    setGenState('idle')
+  }
+
+  const handleGenerate = () => {
+    setGenState('generating')
+    const projectName = branch === 'backend' ? 'backend' : 'frontend'
+    setProjectName(projectName)
+    generateCode({
+      user_stories: userStories,
+      project_type: branch,
+      language: tech,
+      output_directory: outputDir,
+      project_name: projectName
+    })
+      .then((res) => {
+        setDesign(res.data)
+        setCompletedSteps((prev) => {
+          const newSteps = [...new Set([...prev, 'setup'])]
+          saveAppState({
+            hasStarted: true,
+            userStories,
+            branch,
+            tech,
+            genState: 'ready',
+            completedSteps: newSteps,
+            currentStep: 'download',
+            design: res.data,
+            outputDir,
+            projectName
+          })
+          return newSteps
+        })
+        setGenState('ready')
+        setCurrentStep('download')
+        setTimeout(() => {
+          resultsRef.current?.scrollIntoView({ behavior: 'smooth' })
+        }, 100)
+      })
+      .catch((err) => {
+        console.error(err)
+        alert('Generation failed')
+        setGenState('idle')
+      })
+  }
+  const goToEditor = () => {
+    navigate('/editor')
+  }
+
+  // Only show stepper if not on home section and hasStarted
+  const showStepper =
+    hasStarted &&
+    currentStep !== 'home' &&
+    ['stories', 'setup', 'download'].includes(currentStep)
+
+  return (
+    <div className={clsx(theme.bgPrimary, 'min-h-screen')}>
+      {showStepper && (
+        <ProgressCircuit
+          currentStep={currentStep}
+          completedSteps={completedSteps}
+          onStepClick={handleStepClick}
+        />
+      )}
+      <main className="h-screen overflow-y-scroll snap-y snap-mandatory">
+        {/* Home Section */}
+        <Section
+          id="home"
+          className={theme.bgPrimary}
+          bottomHexagon={{ position: '-bottom-16 left-1/4', color: 'hexagonPrimary' }}
+        >
+          <div className="text-center max-w-4xl">
+            <h1 className="text-6xl md:text-8xl font-extrabold mb-4">
+              <span className="text-red-500">//</span> AI agents that
+            </h1>
+            <h1 className="text-6xl md:text-8xl font-extrabold text-blue-400 mb-8">
+              build your code <span className="text-red-500">//</span>
+            </h1>
+            <p className="text-xl mb-12">
+              Describe your app in plain English. We'll generate production-ready code.
+            </p>
+            <button
+              onClick={handleGetStarted}
+              className="bg-red-500 py-4 px-10 rounded-lg text-xl font-bold hover:bg-red-600 transition-all h-[56px] text-white"
+              style={{ minHeight: 56 }}
+            >
+              Get Started <ArrowRight className="inline ml-2" />
+            </button>
+          </div>
+        </Section>
+
+        {/* Stories Section */}
+        {hasStarted && (
           <Section
-            ref={refs.home}
-            id="home"
-            className={theme.bgPrimary}
-            bottomHexagon={{ position:'-bottom-16 left-1/4', color:'hexagonPrimary' }}
-          >
-            <div className="text-center max-w-4xl">
-              <h1 className="text-6xl md:text-8xl font-extrabold mb-4">
-                <span className="text-red-500">//</span> AI agents that
-              </h1>
-              <h1 className="text-6xl md:text-8xl font-extrabold text-blue-400 mb-8">
-                build your code <span className="text-red-500">//</span>
-              </h1>
-              <p className={clsx(theme.textSecondary,'text-xl mb-12')}>
-                Describe your app in plain English. We'll generate production-ready code.
-              </p>
-              <button
-                onClick={()=>scrollTo('stories')}
-                className="bg-red-500 py-4 px-10 rounded-lg text-xl font-bold hover:bg-red-600 transition-all text-white"
-              >
-                Start Building <ArrowRight className="inline ml-2"/>
-              </button>
-            </div>
-          </Section>
-          {/* Stories */}
-          <Section
-            ref={refs.stories}
+            ref={storyRef}
             id="stories"
             className={theme.bgSecondary}
-            topHexagon   ={{ position:'-top-16 right-1/4', color:'hexagonSecondary' }}
-            bottomHexagon={{ position:'-bottom-16 left-1/2',   color:'hexagonSecondary' }}
+            topHexagon={{ position: '-top-16 right-1/4', color: 'hexagonSecondary' }}
+            bottomHexagon={{ position: '-bottom-16 left-1/2', color: 'hexagonSecondary' }}
           >
-            <div className="flex flex-col md:flex-row w-full max-w-4xl">
-              <div className="md:w-1/3 pr-8 text-left">
-                <h2 className="text-5xl font-bold mb-2">
-                  <span className="text-red-500">//</span> Step 1
-                </h2>
-                <p className={clsx(theme.textTertiary,'text-xl')}>Your Vision</p>
+            <div className="flex flex-col md:flex-row w-full max-w-4xl h-full">
+              {/* Step Heading: left, vertically centered */}
+              <div className="md:w-1/3 flex flex-col justify-center items-center md:items-start">
+                <div className="w-full flex flex-col items-center md:items-start">
+                  <h2 className="text-5xl font-bold mb-2 text-left">
+                    <span className="text-red-500">//</span> Step 1
+                  </h2>
+                  <p className={clsx(theme.textTertiary, 'text-xl text-left')}>Your Vision</p>
+                </div>
               </div>
               <div className="md:w-2/3 flex flex-col">
                 <textarea
                   value={userStories}
-                  onChange={e=>setUserStories(e.target.value)}
+                  onChange={(e) => setUserStories(e.target.value)}
+                  placeholder="Describe your application in plain English..."
                   className={clsx(
-                    'w-full h-40 p-6 rounded-xl focus:ring-2 focus:ring-blue-500',
-                    theme.input, theme.text
+                    'w-full h-40 p-6 rounded-xl focus:ring-2 focus:ring-blue-500 resize-none',
+                    theme.input,
+                    theme.text
                   )}
                 />
                 <div className="mt-6 flex justify-end">
                   <button
                     onClick={handleStoriesNext}
                     disabled={!userStories.trim()}
-                    className="bg-blue-500 py-3 px-8 rounded-lg text-lg font-bold hover:bg-blue-600 transition-all disabled:bg-gray-600 text-white"
+                    className="bg-blue-500 py-3 px-8 rounded-lg text-lg font-bold hover:bg-blue-600 transition-all disabled:bg-gray-600 disabled:cursor-not-allowed h-[56px] text-white"
+                    style={{ minHeight: 56 }}
                   >
-                    Next: Project Setup <ArrowRight className="inline ml-2"/>
+                    Next: Project Setup <ArrowRight className="inline ml-2" />
                   </button>
                 </div>
               </div>
             </div>
           </Section>
-          {/* Branches */}
+        )}
+
+        {/* Setup Section */}
+        {completedSteps.includes('stories') && (
           <Section
-            ref={refs.branches}
-            id="branches"
+            ref={setupRef}
+            id="setup"
             className={theme.bgPrimary}
-            topHexagon   ={{ position:'-top-16 left-[16.666%]', color:'hexagonPrimary' }}
-            bottomHexagon={{ position:'-bottom-16 right-[25%]',  color:'hexagonPrimary' }}
+            topHexagon={{ position: '-top-16 left-[16.666%]', color: 'hexagonPrimary' }}
+            bottomHexagon={{ position: '-bottom-16 right-[25%]', color: 'hexagonPrimary' }}
           >
-            <div className="flex flex-col md:flex-row w-full max-w-4xl">
-              <div className="md:w-1/3 pr-8 text-left">
-                <h2 className="text-5xl font-bold mb-2">
-                  <span className="text-red-500">//</span> Step 2
-                </h2>
-                <p className={clsx(theme.textTertiary,'text-xl')}>Project Setup</p>
+            <div className="flex flex-col md:flex-row w-full max-w-4xl h-full">
+              {/* Step Heading: left, vertically centered */}
+              <div className="md:w-1/3 flex flex-col justify-center items-center md:items-start">
+                <div className="w-full flex flex-col items-center md:items-start">
+                  <h2 className="text-5xl font-bold mb-2 text-left">
+                    <span className="text-red-500">//</span> Step 2
+                  </h2>
+                  <p className={clsx(theme.textTertiary, 'text-xl text-left')}>Project Setup</p>
+                </div>
               </div>
               <div className="md:w-2/3 space-y-8">
                 {!branch ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {['frontend','backend'].map(b=>(
+                    {['frontend', 'backend'].map((b) => (
                       <div
                         key={b}
-                        onClick={()=>handleBranchSelect(b)}
+                        onClick={() => handleBranchSelect(b)}
                         className={clsx(
                           'group relative p-8 border-2 rounded-2xl cursor-pointer transition-all duration-500 transform hover:scale-105',
-                          b==='frontend'
+                          b === 'frontend'
                             ? 'border-blue-400 hover:bg-blue-400/5'
                             : 'border-green-400 hover:bg-green-400/5'
                         )}
+                        style={{ minHeight: 56 }}
                       >
                         <div className="flex justify-center mb-6">
-                          <div className={clsx(
-                            'w-16 h-16 rounded-full flex items-center justify-center transition-colors duration-300',
-                            b==='frontend'
-                              ? 'bg-blue-500/20 group-hover:bg-blue-500/30'
-                              : 'bg-green-500/20 group-hover:bg-green-500/30'
-                          )}>
-                            {b==='frontend'
-                              ? <Code size={32} className="text-blue-400"/>
-                              : <Server size={32} className="text-green-400"/>}
+                          <div
+                            className={clsx(
+                              'w-16 h-16 rounded-full flex items-center justify-center transition-colors duration-300',
+                              b === 'frontend'
+                                ? 'bg-blue-500/20 group-hover:bg-blue-500/30'
+                                : 'bg-green-500/20 group-hover:bg-green-500/30'
+                            )}
+                          >
+                            {b === 'frontend' ? (
+                              <Code size={32} className="text-blue-400" />
+                            ) : (
+                              <Server size={32} className="text-green-400" />
+                            )}
                           </div>
                         </div>
                         <h3 className="text-3xl font-bold mb-2 capitalize text-center">
@@ -446,7 +621,7 @@ export default function App() {
                         <ArrowRight
                           className={clsx(
                             'absolute bottom-4 right-4 transition-opacity duration-300',
-                            b==='frontend' ? 'text-blue-400':'text-green-400',
+                            b === 'frontend' ? 'text-blue-400' : 'text-green-400',
                             'opacity-0 group-hover:opacity-100'
                           )}
                           size={24}
@@ -455,148 +630,414 @@ export default function App() {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {['frontend','backend'].map(b=>{
-                      const color = b==='frontend'?'blue':'green'
-                      return (
-                        <div
-                          key={b}
-                          onClick={()=>handleBranchSelect(b)}
-                          className={clsx(
-                            'px-4 py-2 rounded-full border-2 cursor-pointer transition-all duration-300 transform hover:scale-105',
-                            branch===b
-                              ? `border-${color}-400 bg-${color}-400/10 text-${color}-400 scale-105`
-                              : clsx(theme.border, theme.textSecondary, theme.borderHover)
-                          )}
-                        >
-                          {b.charAt(0).toUpperCase()+b.slice(1)}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-                {branch && (
-                  <div className="relative min-h-[200px]">
-                    {/* Tech Cards */}
-                    <div className={clsx('transition-opacity duration-300',{
-                      'opacity-0 pointer-events-none': tech,
-                      'opacity-100': !tech
-                    })}>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {techOptions[branch].map(t=>(
+                  <div className="space-y-6">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {['frontend', 'backend'].map((b) => {
+                        const color = b === 'frontend' ? 'blue' : 'green'
+                        return (
                           <div
-                            key={t.id}
-                            onClick={()=>handleTechSelect(t.id)}
-                            className="group relative p-6 border-2 border-white/20 rounded-xl cursor-pointer transition-all duration-500 transform hover:scale-105 hover:border-purple-400 hover:bg-purple-400/5"
-                          >
-                            <div className="flex justify-center mb-4">
-                              <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center group-hover:bg-purple-500/30 transition-colors duration-300">
-                                {t.icon}
-                              </div>
-                            </div>
-                            <h3 className="text-xl font-bold mb-2 text-center">
-                              {t.name}
-                            </h3>
-                            <ArrowRight className="absolute bottom-3 right-3 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" size={20}/>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {/* Tech Chips + Generate */}
-                    <div className={clsx('absolute top-0 left-0 w-full space-y-8 transition-opacity duration-300',{
-                      'opacity-100': tech,
-                      'opacity-0 pointer-events-none': !tech
-                    })}>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {techOptions[branch].map(tOpt=>(
-                          <div
-                            key={tOpt.id}
-                            onClick={()=>handleTechSelect(tOpt.id)}
+                            key={b}
+                            onClick={() => handleBranchSelect(b)}
                             className={clsx(
                               'px-4 py-2 rounded-full border-2 cursor-pointer transition-all duration-300 transform hover:scale-105',
-                              tech===tOpt.id
-                                ? 'border-purple-400 bg-purple-400/10 text-purple-400 scale-105'
+                              branch === b
+                                ? `border-${color}-400 bg-${color}-400/10 text-${color}-400 scale-105`
                                 : clsx(theme.border, theme.textSecondary, theme.borderHover)
                             )}
                           >
-                            {tOpt.name}
+                            {b.charAt(0).toUpperCase() + b.slice(1)}
                           </div>
-                        ))}
-                      </div>
-                      <div className="flex justify-end">
-                        <button
-                          onClick={handleGenerate}
-                          disabled={genState==='generating'}
-                          className={clsx(
-                            'py-4 px-10 rounded-lg text-xl font-bold flex items-center transition-all duration-300 text-white',
-                            genState==='generating'
-                              ? 'bg-red-400 cursor-not-allowed'
-                              : 'bg-red-500 hover:bg-red-600 hover:scale-105'
-                          )}
-                        >
-                          {genState==='generating'
-                            ? <> <Loader size={20} className="animate-spin mr-3"/>Generating... </>
-                            : <> <BrainCircuit size={20} className="mr-3"/>Generate </>}
-                        </button>
-                      </div>
+                        )
+                      })}
                     </div>
+
+                    {branch && (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          {techOptions[branch].map((t) => (
+                            <div
+                              key={t.id}
+                              onClick={() => handleTechSelect(t.id)}
+                              className={clsx(
+                                'group relative p-6 border-2 rounded-xl cursor-pointer transition-all duration-500 transform hover:scale-105',
+                                tech === t.id
+                                  ? 'border-purple-400 bg-purple-400/10 scale-105'
+                                  : 'border-white/20 hover:border-purple-400 hover:bg-purple-400/5'
+                              )}
+                              style={{ minHeight: 56 }}
+                            >
+                              <div className="flex justify-center mb-4">
+                                <div
+                                  className={clsx(
+                                    'w-12 h-12 rounded-full flex items-center justify-center transition-colors duration-300',
+                                    tech === t.id
+                                      ? 'bg-purple-500/30'
+                                      : 'bg-purple-500/20 group-hover:bg-purple-500/30'
+                                  )}
+                                >
+                                  {t.icon}
+                                </div>
+                              </div>
+                              <h3 className="text-xl font-bold mb-2 text-center">{t.name}</h3>
+                              <ArrowRight
+                                className={clsx(
+                                  'absolute bottom-3 right-3 text-purple-400 transition-opacity duration-300',
+                                  tech === t.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                )}
+                                size={20}
+                              />
+                            </div>
+                          ))}
+                        </div>
+
+                        {tech && (
+                          <div className="flex justify-end">
+                            <button
+                              onClick={handleGenerate}
+                              disabled={genState === 'generating'}
+                              className={clsx(
+                                'py-4 px-10 rounded-lg text-xl font-bold flex items-center transition-all duration-300 text-white',
+                                genState === 'generating'
+                                  ? 'bg-red-400 cursor-not-allowed'
+                                  : 'bg-red-500 hover:bg-red-600 hover:scale-105'
+                              )}
+                              style={{ minHeight: 56 }}
+                            >
+                              {genState === 'generating' ? (
+                                <>
+                                  <Loader size={20} className="animate-spin mr-3" />
+                                  Generating...
+                                </>
+                              ) : (
+                                <>
+                                  <BrainCircuit size={20} className="mr-3" />
+                                  Generate
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           </Section>
-          {/* Results */}
+        )}
+
+        {/* Results Section */}
+        {completedSteps.includes('setup') && (
           <Section
-            ref={refs.results}
+            ref={resultsRef}
             id="results"
             className={theme.bgSecondary}
-            topHexagon={{ position:'-top-16 left-[16.666%]', color:'hexagonSecondary' }}
+            topHexagon={{ position: '-top-16 left-[16.666%]', color: 'hexagonSecondary' }}
           >
-            <div className="flex flex-col md:flex-row w-full max-w-4xl">
-              <div className="md:w-1/3 pr-8 text-left">
-                <h2 className="text-5xl font-bold mb-2">
-                  <span className="text-red-500">//</span> Step 3
-                </h2>
-                <p className={clsx(theme.textTertiary,'text-xl')}>Your Project</p>
+            <div className="flex flex-col md:flex-row w-full max-w-4xl h-full">
+              {/* Step Heading: left, vertically centered */}
+              <div className="md:w-1/3 flex flex-col justify-center items-center md:items-start">
+                <div className="w-full flex flex-col items-center md:items-start">
+                  <h2 className="text-5xl font-bold mb-2 text-left">
+                    <span className="text-red-500">//</span> Step 3
+                  </h2>
+                  <p className={clsx(theme.textTertiary, 'text-xl text-left')}>Design Plan</p>
+                </div>
               </div>
               <div className="md:w-2/3">
-                {genState==='ready' && project && (
-                  <div className={clsx('p-8 rounded-2xl border', theme.card, theme.border)}>
-                    <div className="flex justify-center mb-6">
-                      <CheckCircle size={64} className="text-green-400"/>
-                    </div>
-                    <h3 className="text-3xl font-bold mb-4 capitalize text-center">
-                      {tech} {branch} Ready!
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                      <div>
-                        <h4 className="font-bold text-blue-400 mb-3">Files</h4>
-                        <ul className={clsx(theme.textSecondary,'space-y-1')}>
-                          {project.files.map(f=> <li key={f}>📄 {f}</li>)}
-                        </ul>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-purple-400 mb-3">Features</h4>
-                        <ul className={clsx(theme.textSecondary,'space-y-1')}>
-                          {project.features.map(fe=> <li key={fe}>✨ {fe}</li>)}
-                        </ul>
+                {design && (
+                  <>
+                    <div className={clsx('p-6 rounded-2xl border max-h-[70vh] overflow-auto', theme.card, theme.border)}>
+                      {/* <p className="text-lg mb-4 font-medium">{design.message}</p> */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="font-semibold mb-2">High-level Design</h4>
+                          <p className="text-sm">{design.high_level_design}</p>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold mb-2">Low-level Design</h4>
+                          <p className="text-sm">{design.low_level_design}</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex justify-center">
+                    <div className="flex justify-end mt-6">
                       <button
-                        onClick={handleDownload}
-                        className="bg-green-500 py-4 px-10 rounded-lg text-xl font-bold hover:bg-green-600 transform hover:scale-105 transition-all text-white"
+                        onClick={goToEditor}
+                        className="bg-blue-500 py-3 px-8 rounded-lg text-lg font-bold hover:bg-blue-600 transition-all h-[56px] text-white"
+                        style={{ minHeight: 56 }}
                       >
-                        <Download className="inline mr-3"/>Download ZIP
+                        Go to Editor
                       </button>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
           </Section>
-        </main>
+        )}
+      </main>
+    </div>
+  )
+}
+
+// --- EditorPage ---
+const EditorPage = () => {
+  const { theme } = useTheme()
+  const navigate = useNavigate()
+  const { completedSteps, outputDir, projectName } = useAppState()
+  const [tree, setTree] = useState([])
+  const [currentFile, setCurrentFile] = useState(null)
+  const [code, setCode] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  // Redirect if setup not completed
+  useEffect(() => {
+    if (!completedSteps.includes('setup')) {
+      navigate('/')
+    }
+  }, [completedSteps, navigate])
+
+  useEffect(() => {
+    if (outputDir && projectName) {
+      getFileTree(decodeURIComponent(outputDir), decodeURIComponent(projectName))
+        .then((res) => setTree(res.data))
+        .catch(console.error)
+    }
+  }, [outputDir, projectName])
+
+  const openFile = (relPath) => {
+    getFileContent(decodeURIComponent(outputDir), decodeURIComponent(projectName), relPath)
+      .then((res) => {
+        setCurrentFile(relPath)
+        setCode(res.data.content)
+      })
+      .catch(console.error)
+  }
+
+  const saveFile = () => {
+    if (!currentFile) return
+    setSaving(true)
+    writeFileContent({
+      output_directory: decodeURIComponent(outputDir),
+      project_name: decodeURIComponent(projectName),
+      relative_path: currentFile,
+      content: code
+    })
+      .then(() => alert('Saved!'))
+      .catch((err) => alert('Save failed: ' + err))
+      .finally(() => setSaving(false))
+  }
+
+  const download = () => {
+    downloadProject({
+      output_directory: decodeURIComponent(outputDir),
+      project_name: decodeURIComponent(projectName)
+    })
+      .then((resp) => {
+        const url = window.URL.createObjectURL(new Blob([resp.data]))
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${projectName}.zip`
+        a.click()
+      })
+      .catch(console.error)
+  }
+
+  if (!completedSteps.includes('setup')) return null
+
+  return (
+    <div className={clsx(theme.bgPrimary, theme.text, 'h-screen pt-16')}>
+      <div className="flex h-full">
+        <aside className={clsx('w-64 border-r overflow-y-auto p-2', theme.border)}>
+          <h3 className="font-bold mb-2">Files</h3>
+          {tree.map((node) => (
+            <FileTreeNode key={node.path} node={node} onFileClick={openFile} />
+          ))}
+        </aside>
+        <div className="flex-1 flex flex-col">
+          <div className={clsx('flex items-center justify-between p-2 border-b', theme.bgSecondary, theme.border)}>
+            <span className="font-medium">{currentFile || 'Select a file…'}</span>
+            <div>
+              <button
+                onClick={saveFile}
+                disabled={saving || !currentFile}
+                className="mr-2 px-3 py-1 bg-blue-500 text-white rounded disabled:opacity-50 h-[40px]"
+                style={{ minHeight: 40 }}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={download}
+                className="px-3 py-1 bg-green-500 text-white rounded h-[40px]"
+                style={{ minHeight: 40 }}
+              >
+                Download Project
+              </button>
+            </div>
+          </div>
+          <div className="flex-1">
+            <MonacoEditor
+              height="100%"
+              language={currentFile?.split('.').pop() || 'javascript'}
+              theme={theme.bgPrimary === 'bg-gray-900' ? 'vs-dark' : 'vs-light'}
+              value={code}
+              onChange={(v) => setCode(v)}
+              options={{ automaticLayout: true }}
+            />
+          </div>
+        </div>
       </div>
+    </div>
+  )
+}
+
+// --- Local Storage helpers ---
+const APP_STATE_KEY = 'codegen_app_state'
+const THEME_KEY = 'codegen_theme'
+
+function loadAppState() {
+  try {
+    const raw = localStorage.getItem(APP_STATE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+function saveAppState(state) {
+  try {
+    localStorage.setItem(APP_STATE_KEY, JSON.stringify(state))
+  } catch { }
+}
+function loadTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY)
+  } catch {
+    return null
+  }
+}
+function saveTheme(theme) {
+  try {
+    localStorage.setItem(THEME_KEY, theme)
+  } catch { }
+}
+
+// --- App ---
+export default function App() {
+  // Theme
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const stored = loadTheme()
+    return stored ? stored === 'dark' : true
+  })
+  const theme = useMemo(() => (isDarkMode ? themes.dark : themes.light), [isDarkMode])
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light')
+    saveTheme(isDarkMode ? 'dark' : 'light')
+  }, [isDarkMode])
+  const toggleTheme = () => setIsDarkMode((d) => !d)
+
+  // App State
+  const [hasStarted, setHasStarted] = useState(false)
+  const [userStories, setUserStories] = useState('')
+  const [branch, setBranch] = useState(null)
+  const [tech, setTech] = useState(null)
+  const [genState, setGenState] = useState('idle')
+  const [completedSteps, setCompletedSteps] = useState([])
+  const [currentStep, setCurrentStep] = useState('stories')
+  const [design, setDesign] = useState(null)
+  const [outputDir, setOutputDir] = useState('C:/temp/projects')
+  const [projectName, setProjectName] = useState('')
+
+  // Hydration flag
+  const [hydrated, setHydrated] = useState(false)
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const loaded = loadAppState()
+    if (loaded) {
+      setHasStarted(loaded.hasStarted)
+      setUserStories(loaded.userStories)
+      setBranch(loaded.branch)
+      setTech(loaded.tech)
+      setGenState(loaded.genState)
+      setCompletedSteps(loaded.completedSteps)
+      setCurrentStep(loaded.currentStep)
+      setDesign(loaded.design)
+      setOutputDir(loaded.outputDir)
+      setProjectName(loaded.projectName)
+    }
+    setHydrated(true)
+  }, [])
+
+  // Save to localStorage on change
+  useEffect(() => {
+    if (!hydrated) return // Don't save until hydrated
+    saveAppState({
+      hasStarted,
+      userStories,
+      branch,
+      tech,
+      genState,
+      completedSteps,
+      currentStep,
+      design,
+      outputDir,
+      projectName
+    })
+  }, [
+    hydrated,
+    hasStarted,
+    userStories,
+    branch,
+    tech,
+    genState,
+    completedSteps,
+    currentStep,
+    design,
+    outputDir,
+    projectName
+  ])
+
+  const appState = {
+    hasStarted,
+    setHasStarted,
+    userStories,
+    setUserStories,
+    branch,
+    setBranch,
+    tech,
+    setTech,
+    genState,
+    setGenState,
+    completedSteps,
+    setCompletedSteps,
+    currentStep,
+    setCurrentStep,
+    design,
+    setDesign,
+    outputDir,
+    setOutputDir,
+    projectName,
+    setProjectName
+  }
+
+  // Only render app after hydration
+  if (!hydrated) return null // or a spinner
+
+  return (
+    <ThemeContext.Provider value={{ isDarkMode, theme, toggleTheme }}>
+      <AppStateContext.Provider value={appState}>
+        <Router>
+          <div className={clsx(theme.bgPrimary, theme.text, 'font-sans min-h-screen')}>
+            <Navbar />
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/editor" element={<EditorPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
+        </Router>
+      </AppStateContext.Provider>
     </ThemeContext.Provider>
   )
 }
